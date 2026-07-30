@@ -1,17 +1,14 @@
 {
-    "version": "1.0.0",
+    "version": "1.0.1",
     "minimum_version": "1.0.0",
     "download_url": "https://github.com/heymotta/cednethelp2/releases/latest/download/CedNet_Help.zip",
     "changelog": [
-        "Versão inicial do CedNet Help",
-        "Módulo de Rede com monitoramento em tempo real",
-        "Módulo Roteador com detecção automática de gateway",
-        "Configuração de IP com cálculo automático",
-        "Scanner de Rede com identificação de dispositivos",
-        "Análise de Canais Wi-Fi",
-        "Central de Automação com Localizador de Senhas",
-        "Speed Test integrado com histórico local",
-        "Sistema de atualização automática"
+        "Correção e estabilização da aba Automação (Localizador de Senhas)",
+        "Resolução de erro NameError ao testar senhas de fabricantes específicos",
+        "Eliminação de falsos positivos em páginas de login /index.asp",
+        "Suporte a todas as 27 senhas padrão do sistema",
+        "Aprimoramento do CedNet Updater com tela informativa ao abrir diretamente",
+        "Melhorias no tratamento de exceções de rede e socket"
     ],
-    "sha256": ""
+    "sha256": "7eba6a453b740fe2625ca418c1c609a626bb74e8802219ed7c37ae3fd3f481bf"
 }
