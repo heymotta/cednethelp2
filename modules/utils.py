@@ -47,8 +47,10 @@ FONTS = {
     "small": ("Segoe UI", 11),
     "small_bold": ("Segoe UI", 11, "bold"),
     "mono": ("Consolas", 13),
+    "mono_bold": ("Consolas", 13, "bold"),
     "mono_large": ("Consolas", 15, "bold"),
     "sidebar_btn": ("Segoe UI", 14),
+
     "sidebar_title": ("Segoe UI", 18, "bold"),
 }
 
@@ -64,7 +66,7 @@ WINDOW_MIN_SIZE = (900, 600)
 # ============================================================
 # Informações do App
 # ============================================================
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 APP_NAME = "CedNet Help"
 
 

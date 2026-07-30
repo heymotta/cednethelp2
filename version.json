@@ -1,9 +1,9 @@
 {
-    "version": "1.1.1",
+    "version": "1.1.2",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.1.1/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.1.2/CedNet_Help.zip",
     "changelog": [
-        "Correcao da inicializacao do executavel com inclusao de dnspython e arquivo de dados"
+        "Fix KeyError mono_bold e restauracao de permissoes Admin"
     ],
-    "sha256": "81c74115ccedbe070a13fe91e1a0fc6186816ff44266cd5d769a86648cb07c18"
+    "sha256": "7a57d29562235fa88b52b5b6656c8a40728f99c21ff4645bc22e71d30c200840"
 }

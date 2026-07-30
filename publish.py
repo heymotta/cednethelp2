@@ -122,7 +122,8 @@ def build_executables():
         pass
 
     print("\n  [1/2] Compilando CedNet Help.exe...")
-    run_cmd('python -m PyInstaller --noconfirm --onedir --windowed --name "CedNet_Help" --collect-all customtkinter --collect-all dns main.py')
+    run_cmd('python -m PyInstaller --noconfirm --onedir --windowed --uac-admin --name "CedNet_Help" --collect-all customtkinter --collect-all dns main.py')
+
 
     print("\n  [2/2] Compilando CedNet Updater.exe...")
     updater_dir = os.path.join(APP_DIR, "updater")
