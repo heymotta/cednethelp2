@@ -18,11 +18,11 @@ from ui.router_panel import RouterPanel
 from ui.ip_config_panel import IPConfigPanel
 from ui.scanner_panel import ScannerPanel
 from ui.wifi_panel import WiFiPanel
-from ui.automation_panel import AutomationPanel
 from ui.speedtest_panel import SpeedTestPanel
 
 
 class CedNetApp(ctk.CTk):
+
     """Janela principal do CedNet Help."""
 
     def __init__(self):
@@ -92,8 +92,8 @@ class CedNetApp(ctk.CTk):
         self.panels["ip_config"] = IPConfigPanel(self.main_area)
         self.panels["scanner"] = ScannerPanel(self.main_area)
         self.panels["wifi"] = WiFiPanel(self.main_area)
-        self.panels["automation"] = AutomationPanel(self.main_area)
         self.panels["speedtest"] = SpeedTestPanel(self.main_area)
+
 
     # ================================================================
     # Navegação

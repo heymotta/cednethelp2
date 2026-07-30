@@ -1,9 +1,9 @@
 {
-    "version": "1.0.4",
+    "version": "1.0.5",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.0.4/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.0.5/CedNet_Help.zip",
     "changelog": [
-        "Eliminacao total de falsos positivos na automacao de senhas com validacao estrita de 3 camadas"
+        "Remocao da aba Automacao do aplicativo"
     ],
-    "sha256": "5041bbbcddac66fbf05f144db6fc7175e407a4db7d78e7a558c18278d3384100"
+    "sha256": "1564e44da0ca072f4ff7d264d7bdfb08d6fa9414a29f201032024a091d119b45"
 }
