@@ -97,11 +97,12 @@ class AutomationPanel(ctk.CTkFrame):
             anchor="e",
         ).pack(side="right")
 
-        # Formulário de Entradas (2 colunas: IP e Usuário)
+        # Formulário de Entradas (3 colunas: IP, Tipo de Dispositivo, Usuário)
         form_grid = ctk.CTkFrame(tool_inner, fg_color="transparent")
         form_grid.pack(fill="x", pady=(0, 15))
         form_grid.columnconfigure(0, weight=2)
         form_grid.columnconfigure(1, weight=1)
+        form_grid.columnconfigure(2, weight=1)
 
         # Campo IP
         ip_box = ctk.CTkFrame(form_grid, fg_color="transparent")
@@ -127,21 +128,21 @@ class AutomationPanel(ctk.CTkFrame):
         )
         self.ip_entry.pack(fill="x")
 
-        # Campo Usuário (ComboBox)
-        user_box = ctk.CTkFrame(form_grid, fg_color="transparent")
-        user_box.grid(row=0, column=1, sticky="ew")
+        # Campo Tipo de Equipamento (ComboBox)
+        type_box = ctk.CTkFrame(form_grid, fg_color="transparent")
+        type_box.grid(row=0, column=1, sticky="ew", padx=(0, 10))
 
         ctk.CTkLabel(
-            user_box,
-            text="Usuário",
+            type_box,
+            text="Tipo de Dispositivo",
             font=FONTS["body_bold"],
             text_color=COLORS["text_primary"],
             anchor="w",
         ).pack(anchor="w", pady=(0, 4))
 
-        self.user_combo = ctk.CTkComboBox(
-            user_box,
-            values=["admin", "ubnt", "root", "user", "cednet"],
+        self.type_combo = ctk.CTkComboBox(
+            type_box,
+            values=["ZTE", "Datacom", "TP-Link", "Rádio", "Geral"],
             font=FONTS["body"],
             dropdown_font=FONTS["body"],
             height=42,
@@ -155,7 +156,38 @@ class AutomationPanel(ctk.CTkFrame):
             text_color=COLORS["text_primary"],
             dropdown_text_color=COLORS["text_primary"],
         )
-        self.user_combo.set("admin")
+        self.type_combo.set("ZTE")
+        self.type_combo.pack(fill="x")
+
+        # Campo Usuário (ComboBox)
+        user_box = ctk.CTkFrame(form_grid, fg_color="transparent")
+        user_box.grid(row=0, column=2, sticky="ew")
+
+        ctk.CTkLabel(
+            user_box,
+            text="Usuário Customizado",
+            font=FONTS["body_bold"],
+            text_color=COLORS["text_primary"],
+            anchor="w",
+        ).pack(anchor="w", pady=(0, 4))
+
+        self.user_combo = ctk.CTkComboBox(
+            user_box,
+            values=["(Auto / Padrão)", "admin", "cednet", "user", "multipro", "ubnt", "root"],
+            font=FONTS["body"],
+            dropdown_font=FONTS["body"],
+            height=42,
+            corner_radius=8,
+            fg_color=COLORS["entry_bg"],
+            border_color=COLORS["border"],
+            button_color=COLORS["accent"],
+            button_hover_color=COLORS["accent_hover"],
+            dropdown_fg_color=COLORS["bg_sidebar"],
+            dropdown_hover_color=COLORS["bg_card"],
+            text_color=COLORS["text_primary"],
+            dropdown_text_color=COLORS["text_primary"],
+        )
+        self.user_combo.set("(Auto / Padrão)")
         self.user_combo.pack(fill="x")
 
         # Botão Iniciar Teste
@@ -266,6 +298,50 @@ class AutomationPanel(ctk.CTkFrame):
         )
         self.log_textbox.pack(fill="x", padx=20, pady=(0, 15))
 
+        # ---- Card do Bloco de Notas Rápido ----
+        notes_card = ctk.CTkFrame(
+            container,
+            fg_color=COLORS["bg_card"],
+            corner_radius=12,
+        )
+        notes_card.pack(fill="x", pady=(15, 0))
+
+        notes_header = ctk.CTkFrame(notes_card, fg_color="transparent")
+        notes_header.pack(fill="x", padx=20, pady=(15, 5))
+
+        ctk.CTkLabel(
+            notes_header,
+            text="📌  Bloco de Notas Rápido",
+            font=FONTS["heading"],
+            text_color=COLORS["text_primary"],
+            anchor="w",
+        ).pack(side="left")
+
+        btn_clear_notes = ctk.CTkButton(
+            notes_header,
+            text="Limpar Notas",
+            font=FONTS["small_bold"],
+            width=110,
+            height=28,
+            corner_radius=6,
+            fg_color=COLORS["bg_sidebar"],
+            hover_color=COLORS["bg_card_hover"],
+            text_color=COLORS["text_secondary"],
+            command=self._clear_notes,
+        )
+        btn_clear_notes.pack(side="right")
+
+        self.notes_textbox = ctk.CTkTextbox(
+            notes_card,
+            font=FONTS["body"],
+            fg_color=COLORS["entry_bg"],
+            text_color=COLORS["text_primary"],
+            corner_radius=8,
+            height=120,
+            wrap="word",
+        )
+        self.notes_textbox.pack(fill="x", padx=20, pady=(0, 15))
+
     def _create_metric_item(self, parent, label: str, default_val: str, row: int, col: int) -> ctk.CTkLabel:
         """Cria um item de métrica (Rótulo + Valor)."""
         box = ctk.CTkFrame(parent, fg_color=COLORS["entry_bg"], corner_radius=6)
@@ -325,7 +401,9 @@ class AutomationPanel(ctk.CTkFrame):
     def _start_finder(self):
         """Inicia a busca por senha."""
         target_ip = self.ip_entry.get().strip()
-        username = self.user_combo.get().strip() or "admin"
+        device_type = self.type_combo.get().strip()
+        user_input = self.user_combo.get().strip()
+        username = "" if user_input == "(Auto / Padrão)" else user_input
 
         if not target_ip:
             self._append_log("❌ Informe o endereço IP do equipamento.")
@@ -343,20 +421,25 @@ class AutomationPanel(ctk.CTkFrame):
         self.progress_bar.set(0.0)
         self._lbl_eq.configure(text="Detectando...")
         self._lbl_url.configure(text="Conectando...")
-        self._lbl_user.configure(text=username)
+        self._lbl_user.configure(text=username or "(Auto)")
         self._lbl_pass.configure(text="—")
         self._lbl_prog.configure(text="0 / 0")
         self._lbl_time.configure(text="00:00:00")
 
-        self._append_log(f"\n{'='*50}\n🚀 Iniciando teste de senhas no IP: {target_ip} (User: {username})")
+        self._append_log(f"\n{'='*50}\n🚀 Iniciando teste de senhas no IP: {target_ip} | Perfil: {device_type} | User: {username or '(Auto)'}")
 
         self.finder.start_finder(
             target_ip=target_ip,
             username=username,
+            device_type=device_type,
             on_progress=lambda d: self._ui_queue.put(("progress", d)),
             on_success=lambda d: self._ui_queue.put(("success", d)),
             on_failure=lambda msg: self._ui_queue.put(("failure", msg)),
         )
+
+    def _clear_notes(self):
+        """Limpa as anotações do bloco de notas."""
+        self.notes_textbox.delete("1.0", "end")
 
     def _update_progress_ui(self, data: dict):
         """Atualiza a UI durante os testes."""

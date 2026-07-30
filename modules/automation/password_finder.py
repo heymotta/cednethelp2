@@ -25,7 +25,7 @@ import os
 import datetime
 import threading
 from typing import Callable, Optional
-from modules.passwords import DEFAULT_PASSWORDS
+from modules.passwords import DEFAULT_PASSWORDS, get_credentials_by_device_type
 
 
 # ================================================================
@@ -64,7 +64,7 @@ def get_combined_passwords() -> list[str]:
     # Adiciona senhas do módulo passwords.py que não estejam na lista
     try:
         for p_entry in DEFAULT_PASSWORDS:
-            pwd = p_entry.get("password", "").strip()
+            pwd = p_entry.get("senha", "").strip() or p_entry.get("password", "").strip()
             if pwd and pwd not in combined:
                 combined.append(pwd)
     except Exception:
@@ -104,9 +104,6 @@ class RadioPasswordFinder:
         """
         # 1. Teste de ping rápido
         ping_ok = self._ping(target_ip)
-        if not ping_ok:
-            # Tenta mesmo assim caso o ping esteja bloqueado por firewall
-            pass
 
         # 2. Testa portas web
         for protocol, port in [("http", 80), ("https", 443), ("http", 8080), ("https", 8443)]:
@@ -170,6 +167,7 @@ class RadioPasswordFinder:
         self,
         target_ip: str,
         username: str,
+        device_type: str,
         on_progress: Callable[[dict], None],
         on_success: Callable[[dict], None],
         on_failure: Callable[[str], None],
@@ -183,7 +181,7 @@ class RadioPasswordFinder:
 
         thread = threading.Thread(
             target=self._run_finder_thread,
-            args=(target_ip, username, on_progress, on_success, on_failure),
+            args=(target_ip, username, device_type, on_progress, on_success, on_failure),
             daemon=True,
             name="PasswordFinderWorker",
         )
@@ -201,75 +199,99 @@ class RadioPasswordFinder:
         self,
         target_ip: str,
         username: str,
+        device_type: str,
         on_progress: Callable[[dict], None],
         on_success: Callable[[dict], None],
         on_failure: Callable[[str], None],
     ):
-        """Executa a sequência de testes de senha."""
-        start_time = time.time()
+        """Executa a sequência de testes de senha com tratamento completo de erros."""
+        try:
+            start_time = time.time()
 
-        # 1. Verifica conectividade web
-        is_web, url_base, eq_type = self.check_target_web(target_ip)
+            # 1. Verifica conectividade web
+            is_web, url_base, eq_type = self.check_target_web(target_ip)
 
-        if not is_web:
-            self._is_running = False
-            self._write_history_log(target_ip, url_base, eq_type, username, "FALHA", "Nenhuma interface web encontrada.")
-            on_failure("❌ Equipamento não possui interface web (HTTP/HTTPS) acessível.")
-            return
-
-        passwords = get_combined_passwords()
-        total_passwords = len(passwords)
-
-        self._write_history_log(target_ip, url_base, eq_type, username, "INICIADO", f"Testando {total_passwords} senhas...")
-
-        found_password = None
-
-        for idx, password in enumerate(passwords, start=1):
-            if self._stop_requested:
+            if not is_web:
                 self._is_running = False
-                on_failure("⏹️ Automação interrompida pelo usuário.")
+                self._write_history_log(target_ip, url_base, eq_type, username or "auto", "FALHA", "Nenhuma interface web encontrada.")
+                on_failure("❌ Equipamento não possui interface web (HTTP/HTTPS) acessível.")
                 return
 
+            # Monta a lista de credenciais {user, pass} a testar
+            credentials_to_test: list[dict[str, str]] = []
+
+            if device_type and device_type.lower() != "geral":
+                # Busca credenciais específicas do tipo selecionado (ZTE, Datacom, TP-Link, Rádio)
+                typed_creds = get_credentials_by_device_type(device_type)
+                for c in typed_creds:
+                    user = username if username and username.strip() else c["user"]
+                    pwd = c["pass"]
+                    if {"user": user, "pass": pwd} not in credentials_to_test:
+                        credentials_to_test.append({"user": user, "pass": pwd})
+            else:
+                # Para "Geral", combina o usuário informado (ou admin) com todas as senhas combinadas
+                target_user = username.strip() if username and username.strip() else "admin"
+                combined_passwords = get_combined_passwords()
+                for pwd in combined_passwords:
+                    credentials_to_test.append({"user": target_user, "pass": pwd})
+
+            total_credentials = len(credentials_to_test)
+            self._write_history_log(target_ip, url_base, eq_type, device_type, "INICIADO", f"Testando {total_credentials} combinações...")
+
+            found_cred = None
+
+            for idx, cred in enumerate(credentials_to_test, start=1):
+                if self._stop_requested:
+                    self._is_running = False
+                    on_failure("⏹️ Automação interrompida pelo usuário.")
+                    return
+
+                curr_user = cred["user"]
+                curr_pass = cred["pass"]
+                elapsed_sec = time.time() - start_time
+
+                # Envia progresso para a UI
+                progress_data = {
+                    "equipment": eq_type,
+                    "url": url_base,
+                    "username": curr_user,
+                    "current_index": idx,
+                    "total": total_credentials,
+                    "current_password": curr_pass,
+                    "elapsed_seconds": elapsed_sec,
+                }
+                on_progress(progress_data)
+
+                # Tenta autenticar
+                login_ok = self._try_login(url_base, curr_user, curr_pass)
+
+                if login_ok:
+                    found_cred = cred
+                    break
+
+                time.sleep(0.15)  # Pequena pausa entre requisições
+
             elapsed_sec = time.time() - start_time
+            self._is_running = False
 
-            # Envia progresso para a UI
-            progress_data = {
-                "equipment": eq_type,
-                "url": url_base,
-                "username": username,
-                "current_index": idx,
-                "total": total_passwords,
-                "current_password": password,
-                "elapsed_seconds": elapsed_sec,
-            }
-            on_progress(progress_data)
+            if found_cred:
+                res_data = {
+                    "ip": target_ip,
+                    "url": url_base,
+                    "equipment": eq_type,
+                    "username": found_cred["user"],
+                    "password": found_cred["pass"],
+                    "elapsed_seconds": elapsed_sec,
+                }
+                self._write_history_log(target_ip, url_base, eq_type, found_cred["user"], "SUCESSO", f"Senha encontrada: {found_cred['pass']}")
+                on_success(res_data)
+            else:
+                self._write_history_log(target_ip, url_base, eq_type, username or "auto", "FALHA", "Nenhuma senha aceita.")
+                on_failure("❌ Nenhuma das credenciais testadas foi aceita pelo equipamento.")
 
-            # Tenta autenticar
-            login_ok = self._try_login(url_base, username, password)
-
-            if login_ok:
-                found_password = password
-                break
-
-            time.sleep(0.15)  # Pequena pausa entre requisições
-
-        elapsed_sec = time.time() - start_time
-        self._is_running = False
-
-        if found_password:
-            res_data = {
-                "ip": target_ip,
-                "url": url_base,
-                "equipment": eq_type,
-                "username": username,
-                "password": found_password,
-                "elapsed_seconds": elapsed_sec,
-            }
-            self._write_history_log(target_ip, url_base, eq_type, username, "SUCESSO", f"Senha encontrada: {found_password}")
-            on_success(res_data)
-        else:
-            self._write_history_log(target_ip, url_base, eq_type, username, "FALHA", "Nenhuma senha aceita.")
-            on_failure("❌ Nenhuma das senhas cadastradas foi aceita pelo equipamento.")
+        except Exception as err:
+            self._is_running = False
+            on_failure(f"❌ Erro de execução na automação: {str(err)}")
 
     # ================================================================
     # Submissão de Formulário / HTTP Authentication
@@ -298,8 +320,8 @@ class RadioPasswordFinder:
 
         # URLs de endpoint de login conhecidas
         login_endpoints = [
-            "/login",
             "/login.cgi",
+            "/login",
             "/cgi-bin/login.cgi",
             "/api/login",
             "/index.cgi",
@@ -326,13 +348,12 @@ class RadioPasswordFinder:
 
                         # Indicadores de login BEM-SUCEDIDO:
                         # - Redirecionou para página principal (main.cgi, status.cgi, home, dashboard)
-                        # - Ou recebeu cookie de sessão e corpo NÃO contém "invalid", "error", "erro", "incorreta"
-                        if any(kw in final_url.lower() for kw in ["main", "status", "dashboard", "home", "index"]):
+                        if any(kw in final_url.lower() for kw in ["main.cgi", "status.cgi", "dashboard", "home.htm", "status.asp", "sys_status"]):
                             return True
 
-                        if "invalid" not in body and "incorrect" not in body and "incorret" not in body and "fail" not in body:
-                            # Se definiu um cookie e o HTTP retornou 200 OK sem mensagem de erro de login
-                            if len(cj) > 0:
+                        if "invalid" not in body and "incorrect" not in body and "incorret" not in body and "fail" not in body and "denied" not in body:
+                            # Se definiu um cookie de sessão válido e retornou 200 OK sem mensagem de erro de login
+                            if len(cj) > 0 and any(ck.name.lower() in ["session", "sid", "auth", "token", "sysid"] for ck in cj):
                                 return True
 
                 except urllib.error.HTTPError as e:
