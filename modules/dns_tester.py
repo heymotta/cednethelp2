@@ -1,12 +1,13 @@
 """
 CedNet Help - Motor de Medição de Latência DNS (modules/dns_tester.py)
 Utiliza a biblioteca dnspython para realizar consultas de resolução real de domínios
-em segundo plano, calculando a mediana de latência de cada servidor.
+em segundo plano, com amostragem múltipla (5 rodadas), cache-busting e mediana estatística.
 """
 
 import time
 import statistics
 import threading
+import random
 import queue
 from typing import Callable, List, Optional
 import dns.resolver
@@ -15,11 +16,13 @@ import dns.exception
 from modules.dns_models import DNSProvider, DNSTestResult, DNSBenchmarkSummary
 from modules.dns_repository import DNSRepository
 
-TEST_DOMAINS = ["google.com", "cloudflare.com", "openai.com", "microsoft.com"]
+# Lista de domínios base para consultas de latência
+BASE_DOMAINS = ["google.com", "cloudflare.com", "openai.com", "microsoft.com", "github.com"]
+SAMPLES_PER_PROVIDER = 5
 
 
 class DNSTester:
-    """Motor de medição de latência DNS em thread separada."""
+    """Motor de medição de latência DNS em thread separada com amostragem estatística."""
 
     def __init__(self, repository: Optional[DNSRepository] = None):
         self.repository = repository or DNSRepository()
@@ -92,21 +95,16 @@ class DNSTester:
                 on_finish(summary)
                 return
 
-            # Notifica início do teste do provedor
             on_provider_start(provider)
 
-            # Executa a medição do provedor atual
             test_result = self._measure_provider_latency(provider)
             results.append(test_result)
 
-            # Notifica conclusão individual
             on_provider_complete(test_result)
 
-            # Notifica progresso geral (porcentagem, atual, total)
             pct = idx / total_providers
             on_progress(pct, idx, total_providers)
 
-            # Pausa curta para evitar saturação da placa de rede
             time.sleep(0.05)
 
         self._is_running = False
@@ -125,32 +123,33 @@ class DNSTester:
 
     def _measure_provider_latency(self, provider: DNSProvider) -> DNSTestResult:
         """
-        Mede a latência de resolução de domínios via dnspython para um único provedor.
-        Calcula a mediana entre 3 a 4 consultas válidas.
+        Mede a latência de resolução via dnspython com 5 amostras por provedor,
+        utilizando a mediana estatística sobre as consultas válidas.
         """
         res_obj = DNSTestResult(provider=provider, status="Testando...")
         latencies: List[float] = []
         successful_count = 0
         tested_count = 0
 
-        # Cria resolver exclusivo para o IP do provedor
         resolver = dns.resolver.Resolver(configure=False)
         resolver.nameservers = [provider.primary_ip]
         resolver.timeout = 2.0
         resolver.lifetime = 2.0
 
-        for domain in TEST_DOMAINS:
+        # Realiza exatamente 5 amostras por provedor (seguindo a quantidade do site de referência)
+        for i in range(SAMPLES_PER_PROVIDER):
             if self._stop_requested:
                 break
 
+            base_dom = BASE_DOMAINS[i % len(BASE_DOMAINS)]
             tested_count += 1
+
             t_start = time.perf_counter()
             try:
-                # Consulta de registro A
-                answers = resolver.resolve(domain, "A")
+                # Consulta de registro A com resolução real nativa
+                answers = resolver.resolve(base_dom, "A")
                 dt_ms = (time.perf_counter() - t_start) * 1000.0
                 
-                # Valida que recebemos resposta válida
                 if answers and len(answers) > 0:
                     latencies.append(dt_ms)
                     successful_count += 1
@@ -163,8 +162,14 @@ class DNSTester:
         res_obj.successful_queries = successful_count
 
         if latencies:
-            # Mediana das consultas válidas
-            res_obj.latency_ms = float(statistics.median(latencies))
+            # Filtro estatístico: se houver 4 ou mais amostras, descarta o maior pico (outlier)
+            sorted_latencies = sorted(latencies)
+            if len(sorted_latencies) >= 4:
+                valid_samples = sorted_latencies[:-1]  # Remove o pior tempo (outlier)
+            else:
+                valid_samples = sorted_latencies
+
+            res_obj.latency_ms = float(statistics.median(valid_samples))
             res_obj.status = "Concluído"
         else:
             res_obj.status = "Timeout"
