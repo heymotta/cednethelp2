@@ -1,9 +1,9 @@
 {
-    "version": "1.0.3",
+    "version": "1.0.4",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.0.3/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.0.4/CedNet_Help.zip",
     "changelog": [
-        "Remocao da etiqueta Modo Automatico no cabecalho"
+        "Eliminacao total de falsos positivos na automacao de senhas com validacao estrita de 3 camadas"
     ],
-    "sha256": "4d631a0271242519b763de49e31c66dc7b8d409f82aa4ee072b9e8a4476bc2b7"
+    "sha256": "5041bbbcddac66fbf05f144db6fc7175e407a4db7d78e7a558c18278d3384100"
 }

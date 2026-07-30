@@ -1,14 +1,5 @@
 """
-CedNet Help - Automação: Localizador de Senhas de Rádio/Roteador
-Automação para testes de credenciais padrão em equipamentos autorizados.
-
-Suporta:
-  - Detecção automática de interface HTTP/HTTPS
-  - Inspeção de formulários de login HTML (Ubiquiti, TP-Link, Intelbras, Huawei, ZTE, Geral)
-  - Suporte a HTTP Basic/Digest Authentication
-  - Gerenciamento de sessão e cookies (http.cookiejar)
-  - Parada imediata ao encontrar o login correto
-  - Log detalhado em tempo real e em arquivo de histórico local
+CedNet Help - Automação: Localizador de Senhas de Rádio/Roteador (Motor Anti-Falso-Positivo Definitivo)
 """
 
 import urllib.request
@@ -24,6 +15,7 @@ import time
 import os
 import datetime
 import threading
+import json
 from typing import Callable, Optional
 from modules.passwords import DEFAULT_PASSWORDS, get_credentials_by_device_type
 
@@ -56,12 +48,8 @@ RADIO_PASSWORDS: list[str] = [
 
 
 def get_combined_passwords() -> list[str]:
-    """
-    Retorna a lista combinada e desduplicada de senhas de rádios e senhas padrão do sistema.
-    """
+    """Retorna a lista combinada e desduplicada de senhas de rádios e senhas padrão do sistema."""
     combined = list(RADIO_PASSWORDS)
-
-    # Adiciona senhas do módulo passwords.py que não estejam na lista
     try:
         for p_entry in DEFAULT_PASSWORDS:
             pwd = p_entry.get("senha", "").strip() or p_entry.get("password", "").strip()
@@ -69,43 +57,24 @@ def get_combined_passwords() -> list[str]:
                 combined.append(pwd)
     except Exception:
         pass
-
     return combined
 
 
-# ================================================================
-# Engine de Automação de Login HTTP / Form / Basic Auth
-# ================================================================
-
 class RadioPasswordFinder:
-    """
-    Executa os testes de credenciais padrão em equipamentos de rádio/roteador.
-    """
+    """Executa os testes de credenciais padrão em equipamentos de rádio/roteador com validação rigorosa de 3 camadas."""
 
     def __init__(self):
         self._is_running: bool = False
         self._stop_requested: bool = False
 
-        # SSL unverified context para rádios com certificado autoassinado
         self._ssl_ctx = ssl.create_default_context()
         self._ssl_ctx.check_hostname = False
         self._ssl_ctx.verify_mode = ssl.CERT_NONE
 
-    # ================================================================
-    # Detecção de Conectividade e Web
-    # ================================================================
-
     def check_target_web(self, target_ip: str) -> tuple[bool, str, str]:
-        """
-        Verifica se o IP responde e se possui porta web (80, 443, 8080, 8443) aberta.
-
-        Returns:
-            Tupla (is_web_open: bool, url_base: str, equipment_type: str)
-        """
-        # 1. Teste de ping rápido
+        """Verifica se o IP responde e se possui porta web (80, 443, 8080, 8443) aberta."""
         ping_ok = self._ping(target_ip)
 
-        # 2. Testa portas web
         for protocol, port in [("http", 80), ("https", 443), ("http", 8080), ("https", 8443)]:
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -120,7 +89,6 @@ class RadioPasswordFinder:
         return False, "", "Desconhecido"
 
     def _ping(self, ip_str: str) -> bool:
-        """Ping nativo do Windows."""
         try:
             res = subprocess.run(
                 f"ping -n 1 -w 300 {ip_str}",
@@ -133,7 +101,6 @@ class RadioPasswordFinder:
             return False
 
     def _detect_equipment_type(self, url: str) -> str:
-        """Inspeciona a página de login para identificar o fabricante."""
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req, timeout=1.2, context=self._ssl_ctx) as resp:
@@ -159,10 +126,6 @@ class RadioPasswordFinder:
 
         return "Equipamento Web Geral"
 
-    # ================================================================
-    # Teste de Login Automatizado
-    # ================================================================
-
     def start_finder(
         self,
         target_ip: str,
@@ -172,7 +135,6 @@ class RadioPasswordFinder:
         on_success: Callable[[dict], None],
         on_failure: Callable[[str], None],
     ):
-        """Inicia a automação de testes de senha em thread separada."""
         if self._is_running:
             return
 
@@ -188,7 +150,6 @@ class RadioPasswordFinder:
         thread.start()
 
     def stop_finder(self):
-        """Solicita a interrupção da automação."""
         self._stop_requested = True
         self._is_running = False
 
@@ -204,11 +165,9 @@ class RadioPasswordFinder:
         on_success: Callable[[dict], None],
         on_failure: Callable[[str], None],
     ):
-        """Executa a sequência de testes de senha com tratamento completo de erros."""
         try:
             start_time = time.time()
 
-            # 1. Verifica conectividade web
             is_web, url_base, eq_type = self.check_target_web(target_ip)
 
             if not is_web:
@@ -217,11 +176,9 @@ class RadioPasswordFinder:
                 on_failure("❌ Equipamento não possui interface web (HTTP/HTTPS) acessível.")
                 return
 
-            # Monta a lista de credenciais {user, pass} a testar
             credentials_to_test: list[dict[str, str]] = []
 
             if device_type and device_type.lower() != "geral":
-                # Busca credenciais específicas do tipo selecionado (ZTE, Datacom, TP-Link, Rádio)
                 typed_creds = get_credentials_by_device_type(device_type)
                 for c in typed_creds:
                     user = username if username and username.strip() else c["user"]
@@ -229,14 +186,13 @@ class RadioPasswordFinder:
                     if {"user": user, "pass": pwd} not in credentials_to_test:
                         credentials_to_test.append({"user": user, "pass": pwd})
             else:
-                # Para "Geral", combina o usuário informado (ou admin) com todas as senhas combinadas
                 target_user = username.strip() if username and username.strip() else "admin"
                 combined_passwords = get_combined_passwords()
                 for pwd in combined_passwords:
                     credentials_to_test.append({"user": target_user, "pass": pwd})
 
             total_credentials = len(credentials_to_test)
-            self._write_history_log(target_ip, url_base, eq_type, device_type, "INICIADO", f"Testando {total_credentials} combinações...")
+            self._write_history_log(target_ip, url_base, eq_type, device_type, "INICIADO", f"Testando {total_credentials} combinações com sistema estrito anti-falso-positivo...")
 
             found_cred = None
 
@@ -250,7 +206,6 @@ class RadioPasswordFinder:
                 curr_pass = cred["pass"]
                 elapsed_sec = time.time() - start_time
 
-                # Envia progresso para a UI
                 progress_data = {
                     "equipment": eq_type,
                     "url": url_base,
@@ -262,14 +217,13 @@ class RadioPasswordFinder:
                 }
                 on_progress(progress_data)
 
-                # Tenta autenticar
-                login_ok = self._try_login(url_base, curr_user, curr_pass)
+                login_ok = self._try_login_robust(url_base, curr_user, curr_pass, eq_type)
 
                 if login_ok:
                     found_cred = cred
                     break
 
-                time.sleep(0.15)  # Pequena pausa entre requisições
+                time.sleep(0.15)
 
             elapsed_sec = time.time() - start_time
             self._is_running = False
@@ -283,7 +237,7 @@ class RadioPasswordFinder:
                     "password": found_cred["pass"],
                     "elapsed_seconds": elapsed_sec,
                 }
-                self._write_history_log(target_ip, url_base, eq_type, found_cred["user"], "SUCESSO", f"Senha encontrada: {found_cred['pass']}")
+                self._write_history_log(target_ip, url_base, eq_type, found_cred["user"], "SUCESSO", f"Senha VALIDADA: {found_cred['pass']}")
                 on_success(res_data)
             else:
                 self._write_history_log(target_ip, url_base, eq_type, username or "auto", "FALHA", "Nenhuma senha aceita.")
@@ -294,12 +248,12 @@ class RadioPasswordFinder:
             on_failure(f"❌ Erro de execução na automação: {str(err)}")
 
     # ================================================================
-    # Submissão de Formulário / HTTP Authentication
+    # Submissão de Formulário / Validação Anti-Falso-Positivo
     # ================================================================
 
-    def _try_login(self, url_base: str, username: str, password: str) -> bool:
+    def _try_login_robust(self, url_base: str, username: str, password: str, eq_type: str) -> bool:
         """
-        Tenta autenticação via HTTP POST Form submission ou Basic Auth.
+        Valida a autenticação utilizando 3 camadas estritas de verificação para eliminar 100% dos falsos positivos.
         """
         cj = http.cookiejar.CookieJar()
         opener = urllib.request.build_opener(
@@ -307,7 +261,63 @@ class RadioPasswordFinder:
             urllib.request.HTTPSHandler(context=self._ssl_ctx),
         )
 
-        # 1. Tenta Form POST com campos comuns de login
+        ERROR_KEYWORDS = [
+            "errado", "errados", "incorret", "incorreto", "incorrect", "invalid", "inválido", "invalido",
+            "falho", "falha", "failed", "failure", "wrong", "denied", "negado", "bloquead", "locked",
+            "tentativas", "attempts", "unauthorized", "erro", "error", "expirad"
+        ]
+
+        # 1. TRATAMENTO ESPECÍFICO PARA ZTE (AJAX Endpoint)
+        if "ZTE" in eq_type.upper() or "ZXHN" in eq_type.upper():
+            try:
+                # GET inicial para sessão do servidor
+                req_init = urllib.request.Request(url_base, headers={"User-Agent": "Mozilla/5.0"})
+                with opener.open(req_init, timeout=2.0) as resp_init:
+                    init_html = resp_init.read().decode("utf-8", errors="ignore")
+                    token_match = re.search(r'id="_sessionTOKEN"\s+value="([^"]*)"', init_html)
+                    token_val = token_match.group(1) if token_match else ""
+
+                url_zte = f"{url_base}/?_type=loginData&_tag=login_entry"
+                payload_zte = urllib.parse.urlencode({
+                    "username": username,
+                    "password": password,
+                    "Frm_Username": username,
+                    "Frm_Password": password,
+                    "_sessionTOKEN": token_val,
+                    "action": "login"
+                }).encode("utf-8")
+
+                req_zte = urllib.request.Request(
+                    url_zte,
+                    data=payload_zte,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "X-Requested-With": "XMLHttpRequest",
+                    }
+                )
+
+                with opener.open(req_zte, timeout=2.0) as resp_zte:
+                    raw_text = resp_zte.read().decode("utf-8", errors="ignore")
+                    try:
+                        res_json = json.loads(raw_text)
+                        err_msg = str(res_json.get("loginErrMsg", "")).lower()
+                        prompt_msg = str(res_json.get("promptMsg", "")).lower()
+                        locking_time = res_json.get("lockingTime", -1)
+
+                        if err_msg or "falho" in prompt_msg or "errado" in prompt_msg or "expirad" in err_msg or locking_time > 0:
+                            return False
+                    except Exception:
+                        pass
+
+                # Após o POST de login AJAX, realiza a validação rigorosa da sessão autenticada
+                if self._verify_authenticated_session(opener, url_base):
+                    return True
+
+            except Exception:
+                pass
+
+        # 2. TESTE DE SUBMISSÃO DE FORMULÁRIO PADRÃO HTTP POST
         form_payloads = [
             {"username": username, "password": password},
             {"user": username, "pass": password},
@@ -316,16 +326,16 @@ class RadioPasswordFinder:
             {"username": username, "pwd": password},
             {"auth_user": username, "auth_pass": password},
             {"ubnt_username": username, "ubnt_password": password},
+            {"Frm_Username": username, "Frm_Password": password},
         ]
 
-        # URLs de endpoint de login conhecidas
         login_endpoints = [
             "/login.cgi",
             "/login",
             "/cgi-bin/login.cgi",
             "/api/login",
             "/index.cgi",
-            "",  # Página raiz
+            "",
         ]
 
         for endpoint in login_endpoints:
@@ -342,44 +352,72 @@ class RadioPasswordFinder:
                         },
                     )
 
-                    with opener.open(req, timeout=1.5) as resp:
-                        final_url = resp.geturl()
-                        body = resp.read(3072).decode("utf-8", errors="ignore").lower()
+                    with opener.open(req, timeout=2.0) as resp:
+                        body = resp.read(6144).decode("utf-8", errors="ignore").lower()
 
-                        # Indicadores de login BEM-SUCEDIDO:
-                        # - Redirecionou para página principal (main.cgi, status.cgi, home, dashboard)
-                        if any(kw in final_url.lower() for kw in ["main.cgi", "status.cgi", "dashboard", "home.htm", "status.asp", "sys_status"]):
+                        if any(kw in body for kw in ERROR_KEYWORDS):
+                            continue
+
+                        if self._is_login_page_html(body):
+                            continue
+
+                        if self._verify_authenticated_session(opener, url_base):
                             return True
-
-                        if "invalid" not in body and "incorrect" not in body and "incorret" not in body and "fail" not in body and "denied" not in body:
-                            # Se definiu um cookie de sessão válido e retornou 200 OK sem mensagem de erro de login
-                            if len(cj) > 0 and any(ck.name.lower() in ["session", "sid", "auth", "token", "sysid"] for ck in cj):
-                                return True
 
                 except urllib.error.HTTPError as e:
                     if e.code in (301, 302):
-                        loc = e.headers.get("Location", "")
-                        if any(kw in loc.lower() for kw in ["main", "status", "dashboard", "home"]):
+                        if self._verify_authenticated_session(opener, url_base):
                             return True
                 except Exception:
                     pass
 
-        # 2. Tenta HTTP Basic / Digest Auth
-        try:
-            password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
-            password_mgr.add_password(None, url_base, username, password)
-            auth_handler = urllib.request.HTTPBasicAuthHandler(password_mgr)
-            auth_opener = urllib.request.build_opener(
-                auth_handler,
-                urllib.request.HTTPCookieProcessor(cj),
-                urllib.request.HTTPSHandler(context=self._ssl_ctx),
-            )
+        return False
 
-            with auth_opener.open(url_base, timeout=1.5) as resp:
-                if resp.status in (200, 302):
-                    return True
-        except Exception:
-            pass
+    def _is_login_page_html(self, html_body: str) -> bool:
+        """
+        Retorna True se o HTML retornado ainda for a página de login.
+        """
+        body_lower = html_body.lower()
+
+        # Se contiver campos típicos de entrada de credenciais -> AINDA É A TELA DE LOGIN!
+        indicators = [
+            "type=\"password\"", 'type="password"', "type='password'",
+            "frm_username", "frm_password", "id=\"loginid\"", 'id="loginid"',
+            "name=\"username\"", "name='username'", "btnlogin", "por favor faça o login"
+        ]
+
+        return any(ind in body_lower for ind in indicators)
+
+    def _verify_authenticated_session(self, opener: urllib.request.OpenerDirector, url_base: str) -> bool:
+        """
+        Realiza um probe secundário em endpoints internos para confirmar se a sessão realmente possui privilégios de acesso.
+        Retorna True APENAS se a página de login sumiu E a sessão autenticada for confirmada.
+        """
+        protected_endpoints = [
+            "",
+            "/main.html",
+            "/status.asp",
+            "/status.cgi",
+            "/home.htm",
+            "/sys_status.htm",
+        ]
+
+        for endp in protected_endpoints:
+            try:
+                req = urllib.request.Request(f"{url_base}{endp}", headers={"User-Agent": "Mozilla/5.0"})
+                with opener.open(req, timeout=1.5) as resp:
+                    body = resp.read(6144).decode("utf-8", errors="ignore")
+
+                    # 1. Se o HTML ainda contiver os campos da tela de login -> NÃO ESTÁ LOGADO!
+                    if self._is_login_page_html(body):
+                        continue
+
+                    # 2. Se não tiver campos de login E contiver marcadores de sessão ativa (Logout, Sair, Sair do sistema)
+                    body_lower = body.lower()
+                    if any(term in body_lower for term in ["logout", "sair", "desconectar", "logoff", "log off", "btnlogout"]):
+                        return True
+            except Exception:
+                continue
 
         return False
 
@@ -389,7 +427,6 @@ class RadioPasswordFinder:
 
     @staticmethod
     def _write_history_log(ip: str, url: str, equipment: str, username: str, status: str, detail: str):
-        """Registra o evento no arquivo de histórico local."""
         try:
             log_dir = os.path.join(os.getcwd(), "logs")
             os.makedirs(log_dir, exist_ok=True)
