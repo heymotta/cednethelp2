@@ -81,8 +81,10 @@ class Sidebar(ctk.CTkFrame):
             ("ip_config",  "⚙️  Config. IP"),
             ("scanner",    "🔍  Scanner"),
             ("wifi",       "📡  Canais Wi-Fi"),
+            ("dns_test",   "⚡  Teste de DNS"),
             ("speedtest",  "⚡  Speed Test"),
         ]
+
 
 
         nav_frame = ctk.CTkFrame(self, fg_color="transparent")
