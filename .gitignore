@@ -22,3 +22,7 @@ data/settings.json
 .vscode/
 .DS_Store
 Thumbs.db
+.env
+token.txt
+data/github_token.txt
+
