@@ -1,0 +1,17 @@
+{
+    "version": "1.0.0",
+    "minimum_version": "1.0.0",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/latest/download/CedNet_Help.zip",
+    "changelog": [
+        "Versão inicial do CedNet Help",
+        "Módulo de Rede com monitoramento em tempo real",
+        "Módulo Roteador com detecção automática de gateway",
+        "Configuração de IP com cálculo automático",
+        "Scanner de Rede com identificação de dispositivos",
+        "Análise de Canais Wi-Fi",
+        "Central de Automação com Localizador de Senhas",
+        "Speed Test integrado com histórico local",
+        "Sistema de atualização automática"
+    ],
+    "sha256": ""
+}
