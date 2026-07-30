@@ -122,7 +122,7 @@ def build_executables():
         pass
 
     print("\n  [1/2] Compilando CedNet Help.exe...")
-    run_cmd('python -m PyInstaller --noconfirm --onedir --windowed --uac-admin --name "CedNet_Help" --collect-all customtkinter main.py')
+    run_cmd('python -m PyInstaller --noconfirm --onedir --windowed --name "CedNet_Help" --collect-all customtkinter --collect-all dns main.py')
 
     print("\n  [2/2] Compilando CedNet Updater.exe...")
     updater_dir = os.path.join(APP_DIR, "updater")
@@ -135,9 +135,16 @@ def build_executables():
         shutil.rmtree(dst_updater, ignore_errors=True)
     shutil.copytree(src_updater, dst_updater)
 
+    # Copia versão e dados de configuração
     shutil.copy2(os.path.join(APP_DIR, "version.json"), os.path.join(APP_DIR, "dist", "CedNet_Help", "version.json"))
 
+    dst_data = os.path.join(APP_DIR, "dist", "CedNet_Help", "data")
+    os.makedirs(dst_data, exist_ok=True)
+    if os.path.exists(os.path.join(APP_DIR, "data", "dns_providers.json")):
+        shutil.copy2(os.path.join(APP_DIR, "data", "dns_providers.json"), os.path.join(dst_data, "dns_providers.json"))
+
     print("  [OK] Compilação de ambos os executáveis concluída!")
+
 
 
 def create_zip_and_hash() -> str:

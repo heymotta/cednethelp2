@@ -1,9 +1,9 @@
 {
-    "version": "1.1.0",
+    "version": "1.1.1",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.1.0/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.1.1/CedNet_Help.zip",
     "changelog": [
-        "Novo modulo Teste de DNS com medicao real dnspython e ranking em tempo real"
+        "Correcao da inicializacao do executavel com inclusao de dnspython e arquivo de dados"
     ],
-    "sha256": "09c5ac88e954f4437449e21b6283f09bc4a5c8c3f703e1353e2ea69e5dca05a4"
+    "sha256": "81c74115ccedbe070a13fe91e1a0fc6186816ff44266cd5d769a86648cb07c18"
 }
