@@ -198,32 +198,63 @@ def create_github_release_api(token: str, version: str, changelog: list[str], zi
 
         print(f"  [OK] Release {tag_name} criada com sucesso no GitHub! (ID: {release_id})")
 
-        upload_url = upload_url_template.split("{")[0] + "?name=CedNet_Help.zip"
-        
-        with open(zip_path, "rb") as f:
-            zip_bytes = f.read()
+    except urllib.error.HTTPError as e:
+        if e.code == 422:
+            print(f"  [i] Release {tag_name} já existe no GitHub. Atualizando asset da Release existente...")
+            url_get_release = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/tags/{tag_name}"
+            req_get = urllib.request.Request(url_get_release, headers=headers)
+            try:
+                with urllib.request.urlopen(req_get, context=ctx) as resp_get:
+                    res_data = json.loads(resp_get.read().decode("utf-8"))
+                    upload_url_template = res_data.get("upload_url", "")
+                    release_id = res_data.get("id")
+                    
+                    # Remove asset antigo se existir
+                    assets = res_data.get("assets", [])
+                    for asset in assets:
+                        if asset.get("name") == "CedNet_Help.zip":
+                            asset_del_url = asset.get("url")
+                            req_del = urllib.request.Request(asset_del_url, headers=headers, method="DELETE")
+                            try:
+                                urllib.request.urlopen(req_del, context=ctx)
+                                print("  [OK] Asset antigo CedNet_Help.zip removido da Release.")
+                            except Exception:
+                                pass
+            except Exception as ex:
+                print(f"[ERRO] Não foi possível obter Release existente: {str(ex)}")
+                return False
+        else:
+            err_body = e.read().decode("utf-8", errors="ignore")
+            print(f"[ERRO] Falha na API do GitHub ({e.code}): {err_body}")
+            return False
+    except Exception as e:
+        print(f"[ERRO] Falha ao criar Release via API: {str(e)}")
+        return False
 
-        upload_headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "CedNet-Help-Publisher/1.0",
-            "Content-Type": "application/zip",
-        }
+    # 2. Faz o upload do arquivo ZIP
+    upload_url = upload_url_template.split("{")[0] + "?name=CedNet_Help.zip"
+    
+    with open(zip_path, "rb") as f:
+        zip_bytes = f.read()
 
-        print("  Enviando CedNet_Help.zip para os servidores do GitHub...")
+    upload_headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "CedNet-Help-Publisher/1.0",
+        "Content-Type": "application/zip",
+    }
+
+    print("  Enviando CedNet_Help.zip para os servidores do GitHub...")
+    try:
         req_upload = urllib.request.Request(upload_url, data=zip_bytes, headers=upload_headers)
         with urllib.request.urlopen(req_upload, context=ctx) as resp_up:
             print("  [OK] Arquivo CedNet_Help.zip anexado com sucesso na Release!")
 
         return True
-
-    except urllib.error.HTTPError as e:
-        err_body = e.read().decode("utf-8", errors="ignore")
-        print(f"[ERRO] Falha na API do GitHub ({e.code}): {err_body}")
-        return False
     except Exception as e:
-        print(f"[ERRO] Falha ao criar Release via API: {str(e)}")
+        print(f"[ERRO] Falha no upload do arquivo ZIP: {str(e)}")
         return False
+
 
 
 def main():
