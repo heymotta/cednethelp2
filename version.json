@@ -1,14 +1,9 @@
 {
-    "version": "1.0.1",
+    "version": "1.0.2",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/latest/download/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.0.2/CedNet_Help.zip",
     "changelog": [
-        "Correção e estabilização da aba Automação (Localizador de Senhas)",
-        "Resolução de erro NameError ao testar senhas de fabricantes específicos",
-        "Eliminação de falsos positivos em páginas de login /index.asp",
-        "Suporte a todas as 27 senhas padrão do sistema",
-        "Atualização de versão interna do aplicativo para v1.0.1 (resolução de loop de atualização)",
-        "Aprimoramento do CedNet Updater com tratamento detalhado de erros de conexão"
+        "teste 1"
     ],
-    "sha256": "441ad91e92ee3036883a15a09737d1c1aad0aae982abd754b6e4ec425a39cba3"
+    "sha256": "3fc183658577d5e0d96b18bfbde6779b272d479106752b619b2248fc28ef0465"
 }
