@@ -118,14 +118,15 @@ class UpdateEngine:
             on_progress(5, "Baixando atualização...", f"Conectando a {self.download_url[:60]}...")
             write_log(f"Iniciando download: {self.download_url}")
 
-            success = self._download_file(on_progress)
+            success, err_msg = self._download_file(on_progress)
             if not success:
                 if self._cancel_requested:
                     on_complete(False, "Download cancelado pelo usuário.")
                 else:
-                    on_complete(False, "Falha ao baixar o pacote de atualização.\nVerifique sua conexão com a internet.")
+                    on_complete(False, err_msg or "Falha ao baixar o pacote de atualização.\nVerifique sua conexão com a internet.")
                 self._cleanup()
                 return
+
 
             # Etapa 2: Verificação de integridade
             if self._cancel_requested:
@@ -202,8 +203,8 @@ class UpdateEngine:
     # Download com Progresso
     # ================================================================
 
-    def _download_file(self, on_progress) -> bool:
-        """Baixa o arquivo ZIP com progresso em tempo real."""
+    def _download_file(self, on_progress) -> tuple[bool, str]:
+        """Baixa o arquivo ZIP com progresso em tempo real. Retorna (success, error_message)."""
         try:
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
@@ -211,7 +212,7 @@ class UpdateEngine:
 
             req = urllib.request.Request(
                 self.download_url,
-                headers={"User-Agent": "CedNet-Updater/1.0"},
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
             )
 
             with urllib.request.urlopen(req, timeout=30, context=ctx) as response:
@@ -223,7 +224,7 @@ class UpdateEngine:
                 with open(self._zip_path, "wb") as f:
                     while True:
                         if self._cancel_requested:
-                            return False
+                            return False, "Download cancelado pelo usuário."
 
                         chunk = response.read(chunk_size)
                         if not chunk:
@@ -251,11 +252,27 @@ class UpdateEngine:
                         on_progress(pct, "Baixando atualização...", f"{size_str}  •  {speed_str}")
 
             write_log(f"Download concluído: {downloaded} bytes em {time.time() - start_time:.1f}s")
-            return True
+            return True, ""
 
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                err_msg = (
+                    "O arquivo de atualização (CedNet_Help.zip) não foi encontrado no GitHub Releases (Erro 404).\n"
+                    "Certifique-se de que o Release foi publicado no repositório."
+                )
+            else:
+                err_msg = f"Erro HTTP {e.code} ao baixar a atualização ({e.reason})."
+            write_log(f"Erro HTTP no download: {e.code} - {e.reason}")
+            return False, err_msg
+        except urllib.error.URLError as e:
+            err_msg = f"Falha de conexão com o servidor:\n{str(e.reason)}"
+            write_log(f"URLError no download: {str(e.reason)}")
+            return False, err_msg
         except Exception as e:
+            err_msg = f"Falha ao baixar a atualização:\n{str(e)}"
             write_log(f"Erro no download: {str(e)}")
-            return False
+            return False, err_msg
+
 
     # ================================================================
     # Verificação de Integridade
