@@ -149,14 +149,8 @@ class AutomationPanel(ctk.CTkFrame):
             anchor="w",
         ).pack(side="left")
 
-        badge = ctk.CTkFrame(header_inner, fg_color=COLORS["entry_bg"], corner_radius=6)
-        badge.pack(side="right")
-        ctk.CTkLabel(
-            badge, text="Modo Automático", font=FONTS["small_bold"],
-            text_color=COLORS["accent_cyan"], padx=10, pady=4,
-        ).pack()
-
         # ---- Card de Formulário (Configurações do Teste) ----
+
         form_card = ctk.CTkFrame(main_container, fg_color=COLORS["bg_card"], corner_radius=12)
         form_card.pack(fill="x", pady=(0, 12))
 

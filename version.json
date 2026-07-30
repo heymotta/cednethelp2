@@ -1,9 +1,9 @@
 {
-    "version": "1.0.2",
+    "version": "1.0.3",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.0.2/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.0.3/CedNet_Help.zip",
     "changelog": [
-        "Redesenho completo da aba Automacao"
+        "Remocao da etiqueta Modo Automatico no cabecalho"
     ],
-    "sha256": "0e222b86e3b996a7006ced6336c2a90e58bd427a3f82c5a5296679343818ca1a"
+    "sha256": "4d631a0271242519b763de49e31c66dc7b8d409f82aa4ee072b9e8a4476bc2b7"
 }
