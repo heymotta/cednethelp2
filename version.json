@@ -7,8 +7,8 @@
         "Resolução de erro NameError ao testar senhas de fabricantes específicos",
         "Eliminação de falsos positivos em páginas de login /index.asp",
         "Suporte a todas as 27 senhas padrão do sistema",
-        "Aprimoramento do CedNet Updater com tratamento detalhado de erros de conexão",
-        "Melhorias no tratamento de exceções de rede e socket"
+        "Atualização de versão interna do aplicativo para v1.0.1 (resolução de loop de atualização)",
+        "Aprimoramento do CedNet Updater com tratamento detalhado de erros de conexão"
     ],
-    "sha256": "781b680d8fd50076f60caec33dabd62519151dfaac3230701872db2c8a6d1283"
+    "sha256": "441ad91e92ee3036883a15a09737d1c1aad0aae982abd754b6e4ec425a39cba3"
 }
