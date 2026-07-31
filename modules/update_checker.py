@@ -147,9 +147,11 @@ def launch_updater(update_info: dict, app_dir: str = "") -> bool:
     # Procura o CedNet_Updater.exe na mesma pasta ou pasta pai
     updater_paths = [
         os.path.join(app_dir, "CedNet_Updater.exe"),
+        os.path.join(app_dir, "CedNet_Updater", "CedNet_Updater.exe"),
         os.path.join(app_dir, "..", "CedNet_Updater", "CedNet_Updater.exe"),
         os.path.join(app_dir, "updater", "CedNet_Updater.exe"),
     ]
+
 
     updater_exe = None
     for path in updater_paths:

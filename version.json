@@ -1,9 +1,9 @@
 {
-    "version": "1.1.4",
+    "version": "1.1.5",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.1.4/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.1.5/CedNet_Help.zip",
     "changelog": [
-        "Adicao da receita de instalacao Inno Setup"
+        "Ajustes de atualizacao automatica via instalador Inno Setup"
     ],
-    "sha256": "a13bc15ff42aea15cadcf0d067d4b0b08d437a5d445019b1b6e3230aaf3989b5"
+    "sha256": "ec2e24b4eaeb39589bc8dffa7df538eaabec5aae40bdafc77a0aa41b9f63fff8"
 }
