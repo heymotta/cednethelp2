@@ -21,7 +21,7 @@ import io
 import threading
 from typing import Callable, Optional
 
-# Dummy stream para PyInstaller --windowed mode (evita 'NoneType' object has no attribute 'fileno')
+# Dummy stream para PyInstaller --windowed mode (evita 'ValueError: negative file descriptor')
 class NullStream(io.StringIO):
     def fileno(self):
         return -1
@@ -30,10 +30,16 @@ class NullStream(io.StringIO):
     def flush(self):
         pass
 
-if sys.stdout is None or not hasattr(sys.stdout, 'fileno'):
-    sys.stdout = NullStream()
-if sys.stderr is None or not hasattr(sys.stderr, 'fileno'):
-    sys.stderr = NullStream()
+for _stream_name in ('stdin', 'stdout', 'stderr'):
+    _stream = getattr(sys, _stream_name, None)
+    if _stream is None or not hasattr(_stream, 'fileno'):
+        setattr(sys, _stream_name, NullStream())
+    else:
+        try:
+            if _stream.fileno() < 0:
+                setattr(sys, _stream_name, NullStream())
+        except Exception:
+            setattr(sys, _stream_name, NullStream())
 
 
 # Directory for local data persistence
@@ -85,11 +91,11 @@ def detect_speedtest_engine(custom_path: str = "") -> tuple[str, str]:
 
     Returns:
         Tupla (engine_type: str, engine_path: str)
-        engine_type pode ser: 'ookla', 'cli', 'python'
+        engine_type pode ser: 'ookla', 'cli', 'not_found'
     """
     # 1. Caminho passado por argumento ou salvo nas configurações
     target_path = custom_path or load_settings().get("speedtest_cli_path", "")
-    if target_path and os.path.exists(target_path):
+    if target_path and os.path.exists(target_path) and os.path.isfile(target_path):
         if "ookla" in target_path.lower() or "speedtest.exe" in target_path.lower() or target_path.lower().endswith(".exe"):
             return "ookla", target_path
         return "cli", target_path
@@ -102,21 +108,25 @@ def detect_speedtest_engine(custom_path: str = "") -> tuple[str, str]:
         os.path.join(getattr(sys, "_MEIPASS", os.getcwd()), "tools", "speedtest.exe"),
     ]
     for p in local_paths:
-        if os.path.exists(p):
+        if os.path.exists(p) and os.path.isfile(p):
+            save_setting("speedtest_cli_path", p)
             return "ookla", p
 
     # 3. Procurar speedtest.exe no PATH do sistema
     ookla_path = shutil.which("speedtest.exe") or shutil.which("speedtest")
-    if ookla_path and "python" not in ookla_path.lower():
+    if ookla_path and "python" not in ookla_path.lower() and os.path.isfile(ookla_path):
+        save_setting("speedtest_cli_path", ookla_path)
         return "ookla", ookla_path
 
     # 4. Procurar script speedtest-cli
     cli_path = shutil.which("speedtest-cli")
-    if cli_path:
+    if cli_path and os.path.isfile(cli_path):
+        save_setting("speedtest_cli_path", cli_path)
         return "cli", cli_path
 
-    # 5. Fallback: Engine Python integrada (com NullStream patch)
-    return "python", "builtin"
+    # 5. Se nenhuma CLI for encontrada
+    return "not_found", ""
+
 
 
 # ================================================================
@@ -234,6 +244,12 @@ class SpeedTestRunner:
             # Estágio 1: Inicialização
             if self._cancel_requested:
                 return
+
+            if engine_type == "not_found":
+                self._is_running = False
+                on_error("Speedtest CLI não encontrado. Selecione o executável para continuar.")
+                return
+
             on_progress(10, "Preparando teste e identificando rede...", {})
 
             if engine_type == "python":
@@ -346,48 +362,58 @@ class SpeedTestRunner:
 
         on_progress(30, "Executando Ookla Speedtest CLI oficial...", {})
 
-        self._process = subprocess.Popen(
-            [bin_path, "--format=json", "--accept-license", "--accept-gdpr"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
+        try:
+            kwargs = {
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.PIPE,
+                "stdin": subprocess.DEVNULL,
+                "text": True,
+                "encoding": "utf-8",
+                "errors": "replace",
+            }
+            if hasattr(subprocess, "CREATE_NO_WINDOW"):
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
-        stdout, _ = self._process.communicate(timeout=60)
-        if not stdout:
+            self._process = subprocess.Popen(
+                [bin_path, "--format=json", "--accept-license", "--accept-gdpr"],
+                **kwargs
+            )
+
+            stdout, _ = self._process.communicate(timeout=60)
+            if not stdout:
+                return None
+
+            data = json.loads(stdout)
+
+            download_mbps = round(data.get("download", {}).get("bandwidth", 0) * 8 / 1e6, 2)
+            upload_mbps = round(data.get("upload", {}).get("bandwidth", 0) * 8 / 1e6, 2)
+            ping_ms = round(data.get("ping", {}).get("latency", 0), 1)
+            jitter_ms = round(data.get("ping", {}).get("jitter", 0), 1)
+            packet_loss = round(data.get("packetLoss", 0.0), 1)
+
+            isp = data.get("isp", "CedNet Telecom")
+            public_ip = data.get("interface", {}).get("externalIp", "—")
+
+            srv = data.get("server", {})
+            server_name = srv.get("name", "Servidor Ookla")
+            server_loc = f"{srv.get('location', '')} - {srv.get('country', '')}"
+
+            return {
+                "download_mbps": download_mbps,
+                "upload_mbps": upload_mbps,
+                "ping_ms": ping_ms,
+                "jitter_ms": jitter_ms,
+                "packet_loss_pct": packet_loss,
+                "isp": isp,
+                "public_ip": public_ip,
+                "server_name": server_name,
+                "server_location": server_loc,
+                "distance_km": 0,
+                "engine": "Ookla Speedtest CLI",
+            }
+        except Exception as exc:
+            print(f"Erro no Ookla Engine: {exc}")
             return None
-
-        data = json.loads(stdout)
-
-        download_mbps = round(data.get("download", {}).get("bandwidth", 0) * 8 / 1e6, 2)
-        upload_mbps = round(data.get("upload", {}).get("bandwidth", 0) * 8 / 1e6, 2)
-        ping_ms = round(data.get("ping", {}).get("latency", 0), 1)
-        jitter_ms = round(data.get("ping", {}).get("jitter", 0), 1)
-        packet_loss = round(data.get("packetLoss", 0.0), 1)
-
-        isp = data.get("isp", "CedNet Telecom")
-        public_ip = data.get("interface", {}).get("externalIp", "—")
-
-        srv = data.get("server", {})
-        server_name = srv.get("name", "Servidor Ookla")
-        server_loc = f"{srv.get('location', '')} - {srv.get('country', '')}"
-
-        return {
-            "download_mbps": download_mbps,
-            "upload_mbps": upload_mbps,
-            "ping_ms": ping_ms,
-            "jitter_ms": jitter_ms,
-            "packet_loss_pct": packet_loss,
-            "isp": isp,
-            "public_ip": public_ip,
-            "server_name": server_name,
-            "server_location": server_loc,
-            "distance_km": 0,
-            "engine": "Ookla Speedtest CLI",
-        }
 
     # ================================================================
     # Execução via speedtest-cli script
@@ -399,51 +425,62 @@ class SpeedTestRunner:
 
         on_progress(30, "Executando Speedtest CLI...", {})
 
-        self._process = subprocess.Popen(
-            [bin_path, "--json"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
+        try:
+            kwargs = {
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.PIPE,
+                "stdin": subprocess.DEVNULL,
+                "text": True,
+                "encoding": "utf-8",
+                "errors": "replace",
+            }
+            if hasattr(subprocess, "CREATE_NO_WINDOW"):
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
-        stdout, _ = self._process.communicate(timeout=60)
-        if not stdout:
+            self._process = subprocess.Popen(
+                [bin_path, "--json"],
+                **kwargs
+            )
+
+            stdout, _ = self._process.communicate(timeout=60)
+            if not stdout:
+                return None
+
+            data = json.loads(stdout)
+
+            download_mbps = round(data.get("download", 0) / 1e6, 2)
+            upload_mbps = round(data.get("upload", 0) / 1e6, 2)
+            ping_ms = round(data.get("ping", 0), 1)
+
+            client = data.get("client", {})
+            isp = client.get("isp", "CedNet Telecom")
+            public_ip = client.get("ip", "—")
+
+            srv = data.get("server", {})
+            server_name = srv.get("sponsor", srv.get("name", "Servidor CLI"))
+            server_loc = f"{srv.get('name', '')} - {srv.get('country', '')}"
+            distance_km = round(srv.get("d", 0), 1)
+
+            return {
+                "download_mbps": download_mbps,
+                "upload_mbps": upload_mbps,
+                "ping_ms": ping_ms,
+                "jitter_ms": round(ping_ms * 0.1, 1),
+                "packet_loss_pct": 0.0,
+                "isp": isp,
+                "public_ip": public_ip,
+                "server_name": server_name,
+                "server_location": server_loc,
+                "distance_km": distance_km,
+                "engine": "speedtest-cli",
+            }
+        except Exception as exc:
+            print(f"Erro no CLI Engine: {exc}")
             return None
-
-        data = json.loads(stdout)
-
-        download_mbps = round(data.get("download", 0) / 1e6, 2)
-        upload_mbps = round(data.get("upload", 0) / 1e6, 2)
-        ping_ms = round(data.get("ping", 0), 1)
-
-        client = data.get("client", {})
-        isp = client.get("isp", "CedNet Telecom")
-        public_ip = client.get("ip", "—")
-
-        srv = data.get("server", {})
-        server_name = srv.get("sponsor", srv.get("name", "Servidor CLI"))
-        server_loc = f"{srv.get('name', '')} - {srv.get('country', '')}"
-        distance_km = round(srv.get("d", 0), 1)
-
-        return {
-            "download_mbps": download_mbps,
-            "upload_mbps": upload_mbps,
-            "ping_ms": ping_ms,
-            "jitter_ms": round(ping_ms * 0.1, 1),
-            "packet_loss_pct": 0.0,
-            "isp": isp,
-            "public_ip": public_ip,
-            "server_name": server_name,
-            "server_location": server_loc,
-            "distance_km": distance_km,
-            "engine": "speedtest-cli",
-        }
 
 
 # ================================================================
+
 # Utilitários de Exportação de Relatórios e CSV
 # ================================================================
 

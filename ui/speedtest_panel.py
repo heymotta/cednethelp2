@@ -39,6 +39,30 @@ class SpeedTestPanel(ctk.CTkFrame):
         self._create_ui()
         self._load_history_table()
         self._start_queue_polling()
+        self._update_engine_badge()
+
+    def _update_engine_badge(self):
+        engine_type, path = detect_speedtest_engine(self._custom_engine_path)
+        if engine_type in ("ookla", "cli"):
+            label = "Ookla Speedtest CLI" if engine_type == "ookla" else "Speedtest CLI"
+            self.lbl_engine_badge.configure(
+                text=f"⚙️ {label}",
+                text_color=COLORS["accent_cyan"]
+            )
+            self.lbl_status.configure(
+                text="Pronto para iniciar o teste de velocidade",
+                text_color=COLORS["text_secondary"]
+            )
+        else:
+            self.lbl_engine_badge.configure(
+                text="⚠️ CLI não encontrado",
+                text_color=COLORS["status_warning"]
+            )
+            self.lbl_status.configure(
+                text="Speedtest CLI não encontrado. Selecione o executável para continuar.",
+                text_color=COLORS["status_warning"]
+            )
+
 
     # ================================================================
     # Construção da UI
@@ -76,17 +100,16 @@ class SpeedTestPanel(ctk.CTkFrame):
             anchor="w",
         ).pack(side="left")
 
-        # Engine badge (Ookla / Speedtest Engine)
-        engine_type, _ = detect_speedtest_engine()
-        engine_label = "Ookla Speedtest CLI" if engine_type == "ookla" else "Speedtest Engine"
+        # Engine badge (Ookla / Speedtest CLI)
         self.lbl_engine_badge = ctk.CTkLabel(
             title_frame,
-            text=f"⚙️ {engine_label}",
+            text="⚙️ Detectando...",
             font=FONTS["small_bold"],
             text_color=COLORS["accent_cyan"],
             anchor="e",
         )
         self.lbl_engine_badge.pack(side="right")
+
 
         # Botões de Iniciar / Cancelar
         ctrl_frame = ctk.CTkFrame(header_inner, fg_color="transparent")
@@ -596,9 +619,7 @@ class SpeedTestPanel(ctk.CTkFrame):
         def save_config():
             self._custom_engine_path = path_entry.get().strip()
             save_setting("speedtest_cli_path", self._custom_engine_path)
-            new_engine, _ = detect_speedtest_engine(self._custom_engine_path)
-            engine_label = "Ookla Speedtest CLI" if new_engine == "ookla" else "Speedtest Engine"
-            self.lbl_engine_badge.configure(text=f"⚙️ {engine_label}")
+            self._update_engine_badge()
             modal.destroy()
             self._show_toast("✅ Configuração do Speedtest salva permanentemente!")
 
@@ -606,6 +627,7 @@ class SpeedTestPanel(ctk.CTkFrame):
             modal, text="Salvar Configurações", font=FONTS["body_bold"],
             height=42, corner_radius=8, fg_color=COLORS["accent"], command=save_config
         ).pack(fill="x", padx=30)
+
 
     def _show_toast(self, message: str):
         self.toast_label.configure(text=message)

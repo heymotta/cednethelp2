@@ -1,10 +1,11 @@
 {
-    "version": "1.2.2",
+    "version": "1.3.0",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.2.2/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.3.0/CedNet_Help.zip",
     "changelog": [
-        "Atualizacao com novo modulo Scanner Ubiquiti",
-        "correcao de tema e bypassing de cache no GitHub"
+        "Recomendacao restrita de canais Wi-Fi (2",
+        "4GHz 1-6 e 5GHz 36/40/44)",
+        "persistencia de configuracao e resolucao do erro negative file descriptor no Speedtest"
     ],
-    "sha256": "aa4004f8bc0dfa05643fc176e5aafd8ca813c32fd1b02100f9481744fe752192"
+    "sha256": "4c4ae78e423bd6707ab662c0e3d7cbd2a6cd1431d6126769e01bc86e40957e63"
 }

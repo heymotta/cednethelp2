@@ -199,10 +199,10 @@ class WiFiScanner:
     @staticmethod
     def _recommend_24ghz(channels: dict[int, list[dict]]) -> dict:
         """
-        Calcula o melhor canal para 2.4 GHz considerando:
-          1. Pontuação de interferência (co-canal e sobreposição adjacente ±2)
-          2. Priorização técnica dos canais 1, 3, 6, 11
+        Calcula o melhor canal para 2.4 GHz considerando todo o espectro (1 a 13),
+        porém restringindo a RECOMENDAÇÃO FINAL estritamente aos canais 1 a 6.
         """
+        allowed_24ghz = [1, 2, 3, 4, 5, 6]
         scores: dict[int, float] = {}
 
         for ch in range(1, 14):
@@ -210,8 +210,7 @@ class WiFiScanner:
 
             # 1. Co-canal (redes no mesmo canal)
             for net in channels.get(ch, []):
-                rssi = net["rssi_dbm"]
-                # Converte RSSI para peso linear de potência (10^(RSSI/10))
+                rssi = net.get("rssi_dbm", -75)
                 power = math.pow(10, (rssi + 100) / 10)
                 score += power * 2.0
 
@@ -219,40 +218,34 @@ class WiFiScanner:
             for adj in (ch - 2, ch - 1, ch + 1, ch + 2):
                 if 1 <= adj <= 13:
                     for net in channels.get(adj, []):
-                        rssi = net["rssi_dbm"]
+                        rssi = net.get("rssi_dbm", -75)
                         dist = abs(ch - adj)
                         power = math.pow(10, (rssi + 100) / 10)
                         penalty = (1.5 / dist)
                         score += power * penalty
 
-            # Prioriza levemente os canais padrão sugeridos (1, 3, 6)
-            if ch in (1, 3, 6):
-                score *= 0.85
-
             scores[ch] = score
 
-        # Escolhe o canal com MENOR pontuação de interferência
-        # Prioriza 1, 3, 6 se empatados ou próximos
-        candidates = sorted(scores.keys(), key=lambda c: (scores[c], 0 if c in (1, 3, 6) else 1))
-        best_ch = candidates[0]
+        # Filtra e escolhe exclusivamente entre os canais permitidos (1 ao 6)
+        best_ch = min(allowed_24ghz, key=lambda c: (scores.get(c, 0.0), len(channels.get(c, []))))
 
         nets_on_best = len(channels.get(best_ch, []))
         reasons = []
 
+        reasons.append(f"• Canal {best_ch}: Menor interferência entre os canais permitidos (1 ao 6).")
         if nets_on_best == 0:
-            reasons.append("• Canal totalmente livre (0 redes detectadas).")
+            reasons.append("• Canal totalmente livre no momento (0 redes detectadas).")
         else:
-            reasons.append(f"• Apenas {nets_on_best} rede(s) utilizando este canal.")
+            reasons.append(f"• Apenas {nets_on_best} rede(s) utilizando este canal diretamente.")
 
-        reasons.append("• Menor nível de interferência e sobreposição no espectro 2.4 GHz.")
-        if best_ch in (1, 3, 6):
-            reasons.append("• Canal recomendado para melhor compatibilidade de equipamentos.")
+        reasons.append("• Análise considerando sinal (RSSI), redes vizinhas e sobreposição de canais adjacentes.")
 
         return {
             "best_channel": best_ch,
             "reasons": reasons,
-            "score": round(scores[best_ch], 2),
+            "score": round(scores.get(best_ch, 0.0), 2),
             "nets_count": nets_on_best,
+            "allowed_range": "1 ao 6",
         }
 
     # ================================================================
@@ -262,48 +255,46 @@ class WiFiScanner:
     @staticmethod
     def _recommend_5ghz(channels: dict[int, list[dict]]) -> dict:
         """
-        Calcula o melhor canal para 5 GHz (foco em 36, 40, 44, 149, 153, 157, 161).
+        Calcula o melhor canal para 5 GHz analisando todo o espectro,
+        porém restringindo a RECOMENDAÇÃO FINAL estritamente aos canais 36, 40 e 44.
         """
-        preferred_5g = [36, 40, 44, 48, 149, 153, 157, 161]
-        all_channels = sorted(channels.keys())
+        allowed_5ghz = [36, 40, 44]
 
-        # Pontua cada canal 5 GHz
         scores: dict[int, float] = {}
-        for ch in all_channels:
+        for ch in allowed_5ghz:
             nets = channels.get(ch, [])
             score = 0.0
             for net in nets:
-                power = math.pow(10, (net["rssi_dbm"] + 100) / 10)
-                score += power
+                rssi = net.get("rssi_dbm", -75)
+                power = math.pow(10, (rssi + 100) / 10)
+                score += power * 2.0
 
-            # Favorece os canais preferenciais não-DFS
-            if ch in preferred_5g:
-                score *= 0.7
+            # Verifica também adjacência próxima se houver
+            for adj in (ch - 4, ch + 4):
+                for net in channels.get(adj, []):
+                    rssi = net.get("rssi_dbm", -75)
+                    power = math.pow(10, (rssi + 100) / 10)
+                    score += power * 1.0
 
             scores[ch] = score
 
-        if not scores:
-            best_ch = 36
-        else:
-            candidates = sorted(scores.keys(), key=lambda c: (scores[c], 0 if c in preferred_5g else 1))
-            best_ch = candidates[0]
-
+        best_ch = min(allowed_5ghz, key=lambda c: (scores.get(c, 0.0), len(channels.get(c, []))))
         nets_on_best = len(channels.get(best_ch, []))
         reasons = []
 
+        reasons.append(f"• Canal {best_ch}: Melhor opção entre 36, 40 e 44.")
         if nets_on_best == 0:
-            reasons.append("• Nenhuma rede detectada neste canal 5 GHz.")
-            reasons.append("• Canal completamente livre e sem interferência.")
+            reasons.append("• Nenhuma rede detectada neste canal de 5 GHz.")
         else:
             reasons.append(f"• Apenas {nets_on_best} rede(s) utilizando este canal.")
-            reasons.append("• Baixa ocupação no espectro 5 GHz.")
 
-        if best_ch in preferred_5g:
-            reasons.append("• Canal de alta velocidade recomendado (não-DFS).")
+        reasons.append("• Faixa recomendada para máxima compatibilidade e menor interferência.")
 
         return {
             "best_channel": best_ch,
             "reasons": reasons,
             "score": round(scores.get(best_ch, 0.0), 2),
             "nets_count": nets_on_best,
+            "allowed_range": "36, 40 e 44",
         }
+

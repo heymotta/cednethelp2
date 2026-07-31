@@ -352,9 +352,9 @@ class WiFiPanel(ctk.CTkFrame):
     def _display_recommendations(self, analysis: dict | None):
         """Atualiza os cards de recomendação inteligente."""
         if not analysis:
-            self.lbl_best_24.configure(text="✔ Melhor canal 2.4 GHz: —", text_color=COLORS["text_secondary"])
+            self.lbl_best_24.configure(text="Canal recomendado: —", text_color=COLORS["text_secondary"])
             self.lbl_reasons_24.configure(text="Nenhuma rede detectada.")
-            self.lbl_best_5g.configure(text="✔ Melhor canal 5 GHz: —", text_color=COLORS["text_secondary"])
+            self.lbl_best_5g.configure(text="Canal recomendado: —", text_color=COLORS["text_secondary"])
             self.lbl_reasons_5g.configure(text="Nenhuma rede detectada.")
             return
 
@@ -363,7 +363,7 @@ class WiFiPanel(ctk.CTkFrame):
         reasons24 = "\n".join(rec24.get("reasons", []))
 
         self.lbl_best_24.configure(
-            text=f"✔ Melhor canal 2.4 GHz: Canal {best24}",
+            text=f"Canal recomendado: {best24} (Menor interferência entre os canais permitidos 1 a 6)",
             text_color=COLORS["status_ok"],
         )
         self.lbl_reasons_24.configure(text=reasons24)
@@ -373,10 +373,11 @@ class WiFiPanel(ctk.CTkFrame):
         reasons5g = "\n".join(rec5g.get("reasons", []))
 
         self.lbl_best_5g.configure(
-            text=f"✔ Melhor canal 5 GHz: Canal {best5g}",
+            text=f"Canal recomendado: {best5g} (Melhor opção entre 36, 40 e 44)",
             text_color=COLORS["status_ok"],
         )
         self.lbl_reasons_5g.configure(text=reasons5g)
+
 
     # ================================================================
     # Renderização do Gráfico de Espectro
