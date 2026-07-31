@@ -68,6 +68,8 @@ def compare_versions(local: str, remote: str) -> int:
         return 0
 
 
+import time
+
 def fetch_remote_version(timeout: float = 5.0) -> Optional[dict]:
     """
     Consulta o version.json remoto e retorna os dados como dicionário.
@@ -78,9 +80,14 @@ def fetch_remote_version(timeout: float = 5.0) -> Optional[dict]:
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
 
+        cache_busting_url = f"{VERSION_URL}?t={int(time.time())}"
         req = urllib.request.Request(
-            VERSION_URL,
-            headers={"User-Agent": "CedNet-Help-Updater/1.0", "Cache-Control": "no-cache"},
+            cache_busting_url,
+            headers={
+                "User-Agent": "CedNet-Help-Updater/1.0",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+            },
         )
 
         with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
@@ -90,6 +97,7 @@ def fetch_remote_version(timeout: float = 5.0) -> Optional[dict]:
     except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError,
             TimeoutError, OSError, Exception):
         return None
+
 
 
 def check_for_update() -> Optional[dict]:
