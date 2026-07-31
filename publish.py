@@ -77,7 +77,57 @@ def get_github_token() -> Optional[str]:
     return None
 
 
+def update_installer_iss(version: str):
+    """Atualiza a versão no arquivo installer.iss."""
+    iss_path = os.path.join(APP_DIR, "installer.iss")
+    if not os.path.exists(iss_path):
+        return
+
+    with open(iss_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    new_content = re.sub(r'#define MyAppVersion "[^"]+"', f'#define MyAppVersion "{version}"', content)
+
+    with open(iss_path, "w", encoding="utf-8") as f:
+        f.write(new_content)
+
+    print(f"  [OK] installer.iss atualizado para a versão '{version}'")
+
+
+def build_inno_setup():
+    """Tenta localizar e executar o compilador do Inno Setup (ISCC.exe)."""
+    iss_path = os.path.join(APP_DIR, "installer.iss")
+    if not os.path.exists(iss_path):
+        return
+
+    possible_paths = [
+        "iscc",
+        r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+        r"C:\Program Files\Inno Setup 6\ISCC.exe",
+        r"C:\Program Files (x86)\Inno Setup 5\ISCC.exe",
+    ]
+
+    iscc_cmd = None
+    for p in possible_paths:
+        if p == "iscc":
+            if shutil.which("iscc"):
+                iscc_cmd = "iscc"
+                break
+        elif os.path.exists(p):
+            iscc_cmd = f'"{p}"'
+            break
+
+    if iscc_cmd:
+        print("\n  [+] Compilando Instalador Inno Setup (CedNet_Help_Setup.exe)...")
+        run_cmd(f'{iscc_cmd} "{iss_path}"')
+        print("  [OK] Instalador CedNet_Help_Setup.exe gerado com sucesso em dist_setup/")
+    else:
+        print("\n  [i] Inno Setup (ISCC.exe) não foi encontrado no sistema.")
+        print("      Para gerar o instalador automático .exe, instale o Inno Setup 6 em seu PC.")
+
+
 def update_utils_py(version: str):
+
     """Atualiza APP_VERSION em modules/utils.py."""
     utils_path = os.path.join(APP_DIR, "modules", "utils.py")
     if not os.path.exists(utils_path):
@@ -295,10 +345,13 @@ def main():
     write_step(1, "Atualizando codigo-fonte e manifesto de versao")
     update_utils_py(new_version)
     update_version_json(new_version, changelog)
+    update_installer_iss(new_version)
 
-    # ETAPA 2: Compilação dos Executáveis
-    write_step(2, "Compilando CedNet Help e CedNet Updater")
+    # ETAPA 2: Compilação dos Executáveis e Instalador Inno Setup
+    write_step(2, "Compilando CedNet Help, CedNet Updater e Instalador")
     build_executables()
+    build_inno_setup()
+
 
     # ETAPA 3: Empacotamento ZIP e cálculo SHA-256
     write_step(3, "Gerando pacote ZIP e calculando hash SHA-256")
