@@ -171,13 +171,16 @@ def build_executables():
     except Exception:
         pass
 
-    print("\n  [1/2] Compilando CedNet Help.exe...")
-    run_cmd('python -m PyInstaller --noconfirm --onedir --windowed --uac-admin --name "CedNet_Help" --collect-all customtkinter --collect-all dns main.py')
+    abs_icon = os.path.abspath(os.path.join(APP_DIR, "assets", "icon.ico"))
+    icon_arg = f'--icon "{abs_icon}"' if os.path.exists(abs_icon) else ''
 
+    print("\n  [1/2] Compilando CedNet Help.exe...")
+    run_cmd(f'python -m PyInstaller --noconfirm --onedir --windowed --uac-admin --name "CedNet_Help" {icon_arg} --collect-all customtkinter --collect-all dns main.py')
 
     print("\n  [2/2] Compilando CedNet Updater.exe...")
     updater_dir = os.path.join(APP_DIR, "updater")
-    run_cmd('python -m PyInstaller --noconfirm --onedir --windowed --name "CedNet_Updater" --collect-all customtkinter updater_main.py', cwd=updater_dir)
+    run_cmd(f'python -m PyInstaller --noconfirm --onedir --windowed --name "CedNet_Updater" {icon_arg} --collect-all customtkinter updater_main.py', cwd=updater_dir)
+
 
     src_updater = os.path.join(updater_dir, "dist", "CedNet_Updater")
     dst_updater = os.path.join(APP_DIR, "dist", "CedNet_Help", "CedNet_Updater")
@@ -186,13 +189,20 @@ def build_executables():
         shutil.rmtree(dst_updater, ignore_errors=True)
     shutil.copytree(src_updater, dst_updater)
 
-    # Copia versão e dados de configuração
+    # Copia versão, pasta de assets e dados de configuração
     shutil.copy2(os.path.join(APP_DIR, "version.json"), os.path.join(APP_DIR, "dist", "CedNet_Help", "version.json"))
+
+    dst_assets = os.path.join(APP_DIR, "dist", "CedNet_Help", "assets")
+    if os.path.exists(dst_assets):
+        shutil.rmtree(dst_assets, ignore_errors=True)
+    if os.path.exists(os.path.join(APP_DIR, "assets")):
+        shutil.copytree(os.path.join(APP_DIR, "assets"), dst_assets)
 
     dst_data = os.path.join(APP_DIR, "dist", "CedNet_Help", "data")
     os.makedirs(dst_data, exist_ok=True)
     if os.path.exists(os.path.join(APP_DIR, "data", "dns_providers.json")):
         shutil.copy2(os.path.join(APP_DIR, "data", "dns_providers.json"), os.path.join(dst_data, "dns_providers.json"))
+
 
     print("  [OK] Compilação de ambos os executáveis concluída!")
 

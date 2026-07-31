@@ -7,6 +7,14 @@ Coordena a navegação entre os painéis dos módulos e gerencia o ciclo de vida
 import customtkinter as ctk
 import sys
 import os
+import ctypes
+
+try:
+    myappid = "cednet.help.app.1.0"
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+except Exception:
+    pass
+
 from modules.utils import (
     COLORS, FONTS, SIDEBAR_WIDTH, WINDOW_SIZE, WINDOW_MIN_SIZE, APP_NAME, APP_VERSION,
 )
@@ -22,7 +30,6 @@ from ui.dns_panel import DNSPanel
 from ui.speedtest_panel import SpeedTestPanel
 
 
-
 class CedNetApp(ctk.CTk):
 
     """Janela principal do CedNet Help."""
@@ -35,12 +42,24 @@ class CedNetApp(ctk.CTk):
         self.geometry(WINDOW_SIZE)
         self.minsize(*WINDOW_MIN_SIZE)
 
+        # Configuração do Ícone na Barra de Título e Barra de Tarefas
+        app_dir = get_app_dir()
+        icon_path = os.path.join(app_dir, "assets", "icon.ico")
+        if not os.path.exists(icon_path):
+            icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "icon.ico")
+        if os.path.exists(icon_path):
+            try:
+                self.iconbitmap(icon_path)
+            except Exception:
+                pass
+
         # Tema escuro profissional
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
         # Cor de fundo da janela principal
         self.configure(fg_color=COLORS["bg_main"])
+
 
         # ---- Inicia o Serviço Central de Monitoramento de Rede ----
         network_manager.start_monitoring(interval_seconds=1.5)

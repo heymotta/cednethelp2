@@ -4,7 +4,7 @@
 ; ============================================================
 
 #define MyAppName "CedNet Help"
-#define MyAppVersion "1.1.5"
+#define MyAppVersion "1.1.6"
 #define MyAppPublisher "CedNet"
 #define MyAppURL "https://github.com/heymotta/cednethelp2"
 #define MyAppExeName "CedNet_Help.exe"
@@ -24,10 +24,13 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 
-; Arquivo executável de saída
+; Arquivo executável de saída e ícone do instalador
 OutputDir=dist_setup
 OutputBaseFilename=CedNet_Help_Setup
+SetupIconFile=assets\icon.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
+
 SolidCompression=yes
 WizardStyle=modern
 
