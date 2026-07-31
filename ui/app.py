@@ -28,6 +28,7 @@ from ui.scanner_panel import ScannerPanel
 from ui.wifi_panel import WiFiPanel
 from ui.dns_panel import DNSPanel
 from ui.speedtest_panel import SpeedTestPanel
+from ui.scanner_page import UbiquitiScannerPage
 
 
 class CedNetApp(ctk.CTk):
@@ -115,6 +116,7 @@ class CedNetApp(ctk.CTk):
         self.panels["wifi"] = WiFiPanel(self.main_area)
         self.panels["dns_test"] = DNSPanel(self.main_area)
         self.panels["speedtest"] = SpeedTestPanel(self.main_area)
+        self.panels["ubiquiti_scanner"] = UbiquitiScannerPage(self.main_area)
 
 
 

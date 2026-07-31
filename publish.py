@@ -175,11 +175,12 @@ def build_executables():
     icon_arg = f'--icon "{abs_icon}"' if os.path.exists(abs_icon) else ''
 
     print("\n  [1/2] Compilando CedNet Help.exe...")
-    run_cmd(f'python -m PyInstaller --noconfirm --onedir --windowed --uac-admin --name "CedNet_Help" {icon_arg} --collect-all customtkinter --collect-all dns main.py')
+    run_cmd(f'python -m PyInstaller --noconfirm --onedir --windowed --uac-admin --name "CedNet_Help" {icon_arg} --collect-all customtkinter --collect-all dns --collect-all scanner main.py')
 
     print("\n  [2/2] Compilando CedNet Updater.exe...")
     updater_dir = os.path.join(APP_DIR, "updater")
     run_cmd(f'python -m PyInstaller --noconfirm --onedir --windowed --name "CedNet_Updater" {icon_arg} --collect-all customtkinter updater_main.py', cwd=updater_dir)
+
 
 
     src_updater = os.path.join(updater_dir, "dist", "CedNet_Updater")
