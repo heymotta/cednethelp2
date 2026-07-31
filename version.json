@@ -1,9 +1,9 @@
 {
-    "version": "1.1.6",
+    "version": "1.1.7",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.1.6/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.1.7/CedNet_Help.zip",
     "changelog": [
-        "Adicao do icone personalizado do aplicativo na barra de tarefas e topo da janela"
+        "Atualizacao dos icones do aplicativo pelo usuario"
     ],
-    "sha256": "95aae098ac3ded6bc5b073678cbf03086e6c7a2ae061bba7763d35bff5112389"
+    "sha256": "4971f05502682277ee16b80dc37c9bb69d2a25d4de955de64a3c019bba759334"
 }
