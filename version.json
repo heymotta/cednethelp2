@@ -1,9 +1,9 @@
 {
-    "version": "1.2.0",
+    "version": "1.2.1",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.2.0/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.2.1/CedNet_Help.zip",
     "changelog": [
-        "Novo modulo Scanner Ubiquiti com descoberta nativa UDP/10001 e tabela de dispositivos"
+        "Correcao do tema escuro da tabela do Scanner Ubiquiti"
     ],
-    "sha256": "19bcdcc5585e63fb92ac9d14d718c28e15282f565a8f5c9ef062eb6766fd713a"
+    "sha256": "1ddbe38aaab331d6762cbb1254a2efd7341c9e6fc5228299643985d50c3f60c1"
 }

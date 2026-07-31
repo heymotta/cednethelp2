@@ -68,8 +68,33 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         table_frame.pack(fill="both", expand=True)
         columns = ("model", "ip", "mac", "name", "firmware", "protocol")
         style = ttk.Style()
-        style.configure("Ubiquiti.Treeview", background=COLORS["bg_card"], fieldbackground=COLORS["bg_card"], foreground=COLORS["text_primary"], rowheight=30, font=("Segoe UI", 10))
-        style.configure("Ubiquiti.Treeview.Heading", background=COLORS["bg_sidebar"], foreground=COLORS["text_primary"], font=("Segoe UI", 10, "bold"))
+        try:
+            style.theme_use("clam")
+        except Exception:
+            pass
+
+        style.configure(
+            "Ubiquiti.Treeview",
+            background=COLORS["bg_card"],
+            fieldbackground=COLORS["bg_card"],
+            foreground=COLORS["text_primary"],
+            rowheight=32,
+            font=("Segoe UI", 10),
+            borderwidth=0,
+        )
+        style.configure(
+            "Ubiquiti.Treeview.Heading",
+            background=COLORS["bg_sidebar"],
+            foreground=COLORS["text_primary"],
+            font=("Segoe UI", 10, "bold"),
+            relief="flat",
+        )
+        style.map(
+            "Ubiquiti.Treeview",
+            background=[("selected", COLORS["accent"])],
+            foreground=[("selected", COLORS["text_primary"])],
+        )
+
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", style="Ubiquiti.Treeview")
         headings = {"model": "Modelo", "ip": "Endereço IP", "mac": "MAC Address", "name": "Nome do equipamento", "firmware": "Firmware", "protocol": "Protocolo"}
         widths = {"model": 150, "ip": 120, "mac": 145, "name": 175, "firmware": 150, "protocol": 90}

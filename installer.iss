@@ -4,7 +4,7 @@
 ; ============================================================
 
 #define MyAppName "CedNet Help"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.2.1"
 #define MyAppPublisher "CedNet"
 #define MyAppURL "https://github.com/heymotta/cednethelp2"
 #define MyAppExeName "CedNet_Help.exe"
