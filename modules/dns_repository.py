@@ -9,7 +9,7 @@ from typing import List
 from modules.dns_models import DNSProvider
 
 DEFAULT_PROVIDERS = [
-    {"id": "cednet", "name": "CedNet DNS", "primary_ip": "191.37.34.202", "secondary_ip": "191.37.34.202", "category": "CedNet Telecom", "enabled": True},
+    {"id": "cednet", "name": "CedNet DNS", "primary_ip": "191.37.34.202", "secondary_ip": "191.37.34.201", "category": "CedNet Telecom", "enabled": True},
     {"id": "cloudflare", "name": "Cloudflare", "primary_ip": "1.1.1.1", "secondary_ip": "1.0.0.1", "category": "Público / Rápido", "enabled": True},
     {"id": "google", "name": "Google Public DNS", "primary_ip": "8.8.8.8", "secondary_ip": "8.8.4.4", "category": "Público / Global", "enabled": True},
     {"id": "opendns", "name": "OpenDNS", "primary_ip": "208.67.222.222", "secondary_ip": "208.67.220.220", "category": "Segurança / Cisco", "enabled": True},

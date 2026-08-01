@@ -3,7 +3,7 @@
         "id": "cednet",
         "name": "CedNet DNS",
         "primary_ip": "191.37.34.202",
-        "secondary_ip": "191.37.34.202",
+        "secondary_ip": "191.37.34.201",
         "category": "CedNet Telecom",
         "enabled": true
     },

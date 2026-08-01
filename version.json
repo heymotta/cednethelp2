@@ -1,12 +1,9 @@
 {
-    "version": "1.7.0",
+    "version": "1.7.1",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.7.0/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.7.1/CedNet_Help.zip",
     "changelog": [
-        "Simplificacao da tabela Wi-Fi (5 colunas) e inclusao do CedNet DNS (191",
-        "37",
-        "34",
-        "202) no Teste de DNS"
+        "Ajustado DNS e Canais Wi-Fi"
     ],
-    "sha256": "a33d6985496070749066595e60ff7f71b666625fa73b289e08d1fd566f8e80a5"
+    "sha256": "562a947284bfcae81801d05be013ade80b72cee6aa71e44b98bf87ab74791339"
 }
