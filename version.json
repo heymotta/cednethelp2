@@ -1,10 +1,9 @@
 {
-    "version": "1.4.1",
+    "version": "1.5.0",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.4.1/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.5.0/CedNet_Help.zip",
     "changelog": [
-        "Ajustes visuais no velocimetro circular",
-        "eliminacao de sobreposicoes de texto e remocao do grafico inferior"
+        "Adicionado Modo Demonstracao (Demo) ao Speed Test para testes de interface e apresentacoes"
     ],
-    "sha256": "a6bdd00efd8618a8072f476c251e94567e07d397353b120a3b99347723afe8b1"
+    "sha256": "48fc9073c2a7079586e6a12e73b1a65bf7ad9bca74295ed932668d23eee703d0"
 }

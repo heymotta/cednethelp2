@@ -229,6 +229,179 @@ class SpeedTestRunner:
         )
         thread.start()
 
+    def run_demo_test(
+        self,
+        demo_params: dict,
+        on_progress: Callable[[int, str, dict], None],
+        on_complete: Callable[[dict], None],
+        on_error: Callable[[str], None],
+    ):
+        """Inicia uma simulação realista de Speed Test (Modo Demonstração)."""
+        if self._is_running:
+            return
+
+        self._is_running = True
+        self._cancel_requested = False
+
+        thread = threading.Thread(
+            target=self._run_demo_worker,
+            args=(demo_params, on_progress, on_complete, on_error),
+            daemon=True,
+            name="SpeedTestDemoWorker",
+        )
+        thread.start()
+
+    def _run_demo_worker(
+        self,
+        demo_params: dict,
+        on_progress: Callable[[int, str, dict], None],
+        on_complete: Callable[[dict], None],
+        on_error: Callable[[str], None],
+    ):
+        import random
+        import math
+        start_time = time.time()
+
+        try:
+            target_dl = float(demo_params.get("download_mbps", 300.0))
+            target_ul = float(demo_params.get("upload_mbps", 150.0))
+            ping_val = float(demo_params.get("ping_ms", 12.0))
+            jitter_val = float(demo_params.get("jitter_ms", 1.5))
+            loss_val = float(demo_params.get("packet_loss_pct", 0.0))
+
+            isp = demo_params.get("isp", "CedNet Telecom")
+            public_ip = demo_params.get("public_ip", "189.100.50.25")
+            server_name = demo_params.get("server_name", "CedNet SP")
+            server_loc = demo_params.get("server_location", "São Paulo - Brasil")
+
+            partial_state = {
+                "phase": "init",
+                "download_mbps": 0.0,
+                "upload_mbps": 0.0,
+                "download_max_mbps": 0.0,
+                "upload_max_mbps": 0.0,
+                "ping_ms": 0.0,
+                "jitter_ms": 0.0,
+                "packet_loss_pct": loss_val,
+                "isp": isp,
+                "public_ip": public_ip,
+                "server_name": server_name,
+                "server_location": server_loc,
+                "progress_pct": 5,
+                "step_label": "🟢 Conectando (Modo Demo)...",
+                "is_demo": True,
+            }
+
+            # 1. Servidor
+            if self._cancel_requested:
+                return
+            partial_state["phase"] = "server"
+            partial_state["step_label"] = "🟢 Servidor encontrado"
+            partial_state["progress_pct"] = 15
+            on_progress(15, partial_state["step_label"], partial_state.copy())
+            time.sleep(0.8)
+
+            # 2. Ping
+            if self._cancel_requested:
+                return
+            partial_state["phase"] = "ping"
+            partial_state["step_label"] = "🟢 Medindo latência (Ping/Jitter)..."
+            partial_state["ping_ms"] = ping_val
+            partial_state["jitter_ms"] = jitter_val
+            partial_state["progress_pct"] = 25
+            on_progress(25, partial_state["step_label"], partial_state.copy())
+            time.sleep(1.0)
+
+            # 3. Download (Simulação de rampa realista)
+            if self._cancel_requested:
+                return
+            partial_state["phase"] = "download"
+            partial_state["step_label"] = "🟢 Medindo Download..."
+
+            dl_steps = 16
+            max_dl = 0.0
+            for i in range(1, dl_steps + 1):
+                if self._cancel_requested:
+                    return
+                ratio = i / dl_steps
+                curve = 1.0 - math.exp(-i / 3.5)
+                fluctuation = random.uniform(-0.03, 0.04) if i > 5 else 0.0
+                cur_dl = round(target_dl * curve * (1.0 + fluctuation), 2)
+                if cur_dl > max_dl:
+                    max_dl = cur_dl
+
+                partial_state["download_mbps"] = cur_dl
+                partial_state["download_max_mbps"] = max_dl
+                prog = 30 + int(ratio * 35)
+                partial_state["progress_pct"] = prog
+                on_progress(prog, partial_state["step_label"], partial_state.copy())
+                time.sleep(0.2)
+
+            partial_state["download_mbps"] = target_dl
+            partial_state["download_max_mbps"] = max(target_dl, max_dl)
+            on_progress(65, partial_state["step_label"], partial_state.copy())
+            time.sleep(0.4)
+
+            # 4. Upload
+            if self._cancel_requested:
+                return
+            partial_state["phase"] = "upload"
+            partial_state["step_label"] = "🟢 Medindo Upload..."
+
+            ul_steps = 16
+            max_ul = 0.0
+            for i in range(1, ul_steps + 1):
+                if self._cancel_requested:
+                    return
+                ratio = i / ul_steps
+                curve = 1.0 - math.exp(-i / 3.5)
+                fluctuation = random.uniform(-0.03, 0.04) if i > 5 else 0.0
+                cur_ul = round(target_ul * curve * (1.0 + fluctuation), 2)
+                if cur_ul > max_ul:
+                    max_ul = cur_ul
+
+                partial_state["upload_mbps"] = cur_ul
+                partial_state["upload_max_mbps"] = max_ul
+                prog = 65 + int(ratio * 30)
+                partial_state["progress_pct"] = prog
+                on_progress(prog, partial_state["step_label"], partial_state.copy())
+                time.sleep(0.2)
+
+            partial_state["upload_mbps"] = target_ul
+            partial_state["upload_max_mbps"] = max(target_ul, max_ul)
+
+            # 5. Conclusão Demo
+            if self._cancel_requested:
+                return
+
+            elapsed = round(time.time() - start_time, 1)
+            final_result = {
+                "download_mbps": target_dl,
+                "upload_mbps": target_ul,
+                "download_max_mbps": max(target_dl, max_dl),
+                "upload_max_mbps": max(target_ul, max_ul),
+                "ping_ms": ping_val,
+                "jitter_ms": jitter_val,
+                "packet_loss_pct": loss_val,
+                "isp": isp,
+                "public_ip": public_ip,
+                "server_name": server_name,
+                "server_location": server_loc,
+                "distance_km": 0,
+                "elapsed_seconds": elapsed,
+                "date_str": datetime.datetime.now().strftime("%d/%m/%Y"),
+                "time_str": datetime.datetime.now().strftime("%H:%M:%S"),
+                "engine": "Modo Demonstração 🎭",
+                "is_demo": True,
+            }
+
+            self._is_running = False
+            on_complete(final_result)
+
+        except Exception as e:
+            self._is_running = False
+            on_error(f"Erro na simulação do Modo Demo: {e}")
+
     def _run_thread_worker(
         self,
         custom_path: str,
