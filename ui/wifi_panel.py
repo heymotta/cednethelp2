@@ -8,7 +8,8 @@ Funcionalidades:
   - Card de Recomendação Inteligente com justificativas técnicas (2.4 GHz e 5 GHz)
   - Visualização gráfica da ocupação dos canais (Barras de Densidade)
   - Tabela filtrável em tempo real
-  - Tratamento para falta de adaptador Wi-Fi ou serviço wlansvc desligado
+  - Tratamento estrito de erros (sem adaptador, sem suporte, sem redes encontradas)
+  - Resposta resiliente com Watchdog Timer e suporte a cancelamento de scan
 """
 
 import customtkinter as ctk
@@ -28,6 +29,8 @@ class WiFiPanel(ctk.CTkFrame):
         self._networks: list[dict] = []
         self._analysis: dict = {}
         self._is_scanning: bool = False
+        self._cancel_requested: bool = False
+        self._watchdog_after_id: Optional[str] = None
 
         self._create_ui()
         # Executa a varredura inicial ao abrir
@@ -71,7 +74,7 @@ class WiFiPanel(ctk.CTkFrame):
         )
         self.btn_refresh.pack(side="right")
 
-        # ---- Card de Erro / Aviso (Escondido por padrão) ----
+        # ---- Card de Erro / Aviso (Exibido sob falha ou 0 redes) ----
         self.error_card = ctk.CTkFrame(
             self.container,
             fg_color="#3d1a1a",
@@ -204,14 +207,12 @@ class WiFiPanel(ctk.CTkFrame):
             bar_box = ctk.CTkFrame(self.bars_frame_24, fg_color="transparent")
             bar_box.grid(row=0, column=ch-1, padx=2, sticky="ew")
 
-            # Indicador numérico de redes no topo
             count_lbl = ctk.CTkLabel(
                 bar_box, text="0", font=FONTS["small_bold"],
                 text_color=COLORS["text_secondary"],
             )
             count_lbl.pack()
 
-            # Barra vertical (simulada via progress bar)
             p_bar = ctk.CTkProgressBar(
                 bar_box, height=50, orientation="vertical",
                 corner_radius=4, fg_color=COLORS["entry_bg"],
@@ -220,7 +221,6 @@ class WiFiPanel(ctk.CTkFrame):
             p_bar.pack(pady=3)
             p_bar.set(0.0)
 
-            # Rótulo do Canal
             ch_color = COLORS["accent_cyan"] if ch in (1, 3, 6) else COLORS["text_secondary"]
             ch_lbl = ctk.CTkLabel(
                 bar_box, text=f"Ch {ch}", font=FONTS["small_bold"],
@@ -290,65 +290,101 @@ class WiFiPanel(ctk.CTkFrame):
         self._row_widgets: list[ctk.CTkFrame] = []
 
     # ================================================================
-    # Execução da Varredura (em Background Thread)
+    # Execução da Varredura Resiliente (Thread + Watchdog + Cancel)
     # ================================================================
 
     def _run_scan(self):
-        """Inicia a varredura das redes Wi-Fi."""
+        """Inicia ou cancela a varredura das redes Wi-Fi."""
         if self._is_scanning:
+            # Clicar durante o escaneamento solicita cancelamento imediato
+            self._cancel_requested = True
+            self.btn_refresh.configure(text="Cancelando...", state="disabled")
             return
 
         self._is_scanning = True
-        self.btn_refresh.configure(state="disabled", text="Escaneando...")
+        self._cancel_requested = False
+
+        self.btn_refresh.configure(
+            text="🛑 Cancelar Scan",
+            fg_color=COLORS["status_error"],
+            hover_color="#c62828",
+            state="normal",
+        )
         self.error_card.pack_forget()
 
-        # Reseta barras
+        # Reseta barras de espectro
         for item in self._channel_bars_24.values():
             item["bar"].set(0.0)
             item["count"].configure(text="0")
 
+        # Watchdog Timer de 10 segundos para garantir que NUNCA fique preso
+        if self._watchdog_after_id:
+            self.after_cancel(self._watchdog_after_id)
+        self._watchdog_after_id = self.after(10000, self._check_scan_watchdog)
+
         thread = threading.Thread(target=self._scan_thread_worker, daemon=True)
         thread.start()
 
+    def _check_scan_watchdog(self):
+        """Watchdog que força o reset de estado caso a thread trave."""
+        if self._is_scanning:
+            self._on_scan_complete(False, "Tempo limite do escaneamento esgotado.", [], {})
+
     def _scan_thread_worker(self):
-        """Worker que chama o WiFiScanner."""
+        """Worker que executa a busca e processa a análise."""
         success = False
         message = "Não foi possível concluir a varredura Wi-Fi."
         networks: list[dict] = []
         analysis: dict = {}
 
         try:
-            success, message, networks = WiFiScanner.scan_networks()
-            if success and networks:
+            def is_cancelled():
+                return self._cancel_requested
+
+            success, message, networks = WiFiScanner.scan_networks(cancel_checker=is_cancelled)
+            if success and networks and not self._cancel_requested:
                 analysis = WiFiScanner.analyze_spectrum(networks)
         except Exception as exc:
-            # Nenhuma exceção do worker pode deixar a UI presa em "Escaneando...".
-            message = f"Erro ao processar a varredura Wi-Fi: {exc}"
-
-        # Atualiza a UI na thread principal via after(), inclusive em caso de erro.
-        try:
-            self.after(0, lambda: self._on_scan_complete(success, message, networks, analysis))
-        except RuntimeError:
-            # O widget pode ter sido destruído durante a varredura.
-            self._is_scanning = False
+            message = f"Erro ao processar varredura Wi-Fi: {exc}"
+        finally:
+            # O bloco FINALLY garante 100% de saída do estado "Escaneando..."
+            try:
+                self.after(0, lambda: self._on_scan_complete(success, message, networks, analysis))
+            except RuntimeError:
+                self._is_scanning = False
 
     def _on_scan_complete(self, success: bool, message: str, networks: list[dict], analysis: dict):
-        """Callback acionado ao concluir a varredura."""
+        """Callback acionado ao concluir a varredura (sucesso ou falha)."""
+        # Cancela o watchdog timer
+        if self._watchdog_after_id:
+            self.after_cancel(self._watchdog_after_id)
+            self._watchdog_after_id = None
+
         self._is_scanning = False
-        self.btn_refresh.configure(state="normal", text="Escanear Novamente")
+        self._cancel_requested = False
+
+        self.btn_refresh.configure(
+            state="normal",
+            text="Escanear Novamente",
+            fg_color=COLORS["accent"],
+            hover_color=COLORS["accent_hover"],
+        )
 
         self._networks = networks
         self._analysis = analysis
 
-        if not success:
-            # Exibe mensagem de erro
-            self.lbl_error_msg.configure(text=message)
+        # Se houve falha de adaptador/serviço ou se 0 redes foram encontradas
+        if not success or not networks:
+            error_msg = message if not success else "Nenhuma rede Wi-Fi foi encontrada."
+            self.lbl_error_msg.configure(text=error_msg)
             self.error_card.pack(fill="x", pady=(0, 12))
             self._display_recommendations(None)
+            self._render_spectrum_graph({})
             self._render_networks_table([])
             return
 
-        # Sucesso: renderiza recomendações, gráfico e tabela
+        # Sucesso com redes encontradas
+        self.error_card.pack_forget()
         self._display_recommendations(analysis)
         self._render_spectrum_graph(analysis.get("channels_24", {}))
         self._render_networks_table(networks)
@@ -386,14 +422,19 @@ class WiFiPanel(ctk.CTkFrame):
         )
         self.lbl_reasons_5g.configure(text=reasons5g)
 
-
     # ================================================================
     # Renderização do Gráfico de Espectro
     # ================================================================
 
     def _render_spectrum_graph(self, channels_24: dict[int, list[dict]]):
         """Atualiza a densidade das barras verticais de cada canal 2.4 GHz."""
-        # Encontra o maior número de redes em um único canal para escala
+        if not channels_24:
+            for item in self._channel_bars_24.values():
+                item["bar"].set(0.0)
+                item["count"].configure(text="0")
+                item["bar"].configure(progress_color=COLORS["accent"])
+            return
+
         max_nets = max([len(nets) for nets in channels_24.values()] + [1])
 
         for ch in range(1, 14):
@@ -405,12 +446,9 @@ class WiFiPanel(ctk.CTkFrame):
                 lbl = self._channel_bars_24[ch]["count"]
 
                 lbl.configure(text=str(count))
-
-                # Fração de altura
                 fraction = min(1.0, count / max_nets) if count > 0 else 0.0
                 bar.set(fraction)
 
-                # Cor conforme a densidade
                 if count == 0:
                     bar.configure(progress_color=COLORS["accent"])
                 elif count <= 2:
@@ -428,6 +466,18 @@ class WiFiPanel(ctk.CTkFrame):
             w.destroy()
         self._row_widgets.clear()
 
+        if not networks:
+            no_row = ctk.CTkFrame(self.scroll_table, fg_color="transparent")
+            no_row.pack(fill="x", pady=15)
+            ctk.CTkLabel(
+                no_row,
+                text="Nenhuma rede Wi-Fi disponível para exibição.",
+                font=FONTS["body"],
+                text_color=COLORS["text_secondary"],
+            ).pack()
+            self._row_widgets.append(no_row)
+            return
+
         query = self.search_entry.get().strip().lower()
 
         filtered = [
@@ -435,7 +485,6 @@ class WiFiPanel(ctk.CTkFrame):
             if not query or self._match_network_query(n, query)
         ]
 
-        # Ordena por intensidade de sinal (mais forte primeiro)
         filtered.sort(key=lambda x: x["signal_pct"], reverse=True)
 
         for index, net in enumerate(filtered):
@@ -544,3 +593,10 @@ class WiFiPanel(ctk.CTkFrame):
             or query in net["band"].lower()
             or query in net["security"].lower()
         )
+
+    def stop_monitoring(self):
+        """Para o watchdog ao fechar."""
+        if self._watchdog_after_id:
+            self.after_cancel(self._watchdog_after_id)
+            self._watchdog_after_id = None
+        self._cancel_requested = True

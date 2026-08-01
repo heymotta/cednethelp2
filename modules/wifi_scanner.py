@@ -15,6 +15,23 @@ import subprocess
 import re
 import math
 from typing import Optional
+"""
+CedNet Help - Módulo de Análise de Canais Wi-Fi
+Coleta redes sem fio via Windows netsh wlan, analisa ocupação do espectro
+e calcula automaticamente o melhor canal para 2.4 GHz e 5 GHz.
+
+Funcionalidades:
+  - Varredura de redes próximas (SSID, BSSID, Sinal, Canal, Frequência, Segurança)
+  - Cálculo de RSSI em dBm (convertido de % de sinal)
+  - Análise de interferência co-canal e sobreposição de canais adjacentes
+  - Algoritmo de recomendação inteligente para 2.4 GHz (foco em 1, 3, 6, 11) e 5 GHz (36, 40, 44, 149, etc.)
+  - Suporte a ambientes PT-BR e EN-US no Windows
+"""
+
+import subprocess
+import re
+import math
+from typing import Optional
 
 
 # Flag para ocultar janela do subprocesso
@@ -25,48 +42,96 @@ class WiFiScanner:
     """Gerenciador de varredura e análise de canais Wi-Fi."""
 
     # ================================================================
+    # Diagnóstico de Adaptador Wi-Fi
+    # ================================================================
+
+    @staticmethod
+    def check_adapter_status() -> tuple[bool, str]:
+        """
+        Verifica o estado do serviço Wi-Fi (wlansvc) e da interface de rede sem fio.
+
+        Returns:
+            Tupla (disponível: bool, mensagem_diagnostico: str)
+        """
+        try:
+            output = subprocess.check_output(
+                "netsh wlan show interfaces",
+                encoding="cp850",
+                errors="replace",
+                creationflags=_NO_WINDOW,
+                timeout=4.0,
+            )
+
+            if not isinstance(output, str):
+                output = output.decode("cp850", errors="replace")
+
+            output_lower = output.lower()
+
+            if "serviço de configuração automática sem fio" in output_lower or "wlansvc" in output_lower:
+                if "não está em execução" in output_lower or "is not running" in output_lower:
+                    return False, "Nenhum adaptador Wi-Fi habilitado foi encontrado."
+
+            if "não há nenhuma interface sem fio" in output_lower or "there is no wireless interface" in output_lower:
+                return False, "Nenhum adaptador Wi-Fi habilitado foi encontrado."
+
+            if "não suporta" in output_lower or "not supported" in output_lower:
+                return False, "O adaptador de rede não suporta escaneamento de redes Wi-Fi."
+
+            return True, "Adaptador Wi-Fi detectado e pronto."
+
+        except subprocess.CalledProcessError as e:
+            return False, "Nenhum adaptador Wi-Fi habilitado foi encontrado."
+        except Exception:
+            return False, "Nenhum adaptador Wi-Fi habilitado foi encontrado."
+
+    # ================================================================
     # Varredura Principal de Redes Wi-Fi
     # ================================================================
 
     @staticmethod
-    def scan_networks() -> tuple[bool, str, list[dict]]:
+    def scan_networks(cancel_checker=None) -> tuple[bool, str, list[dict]]:
         """
         Executa a varredura de redes Wi-Fi usando 'netsh wlan show networks mode=bssid'.
 
         Returns:
             Tupla (sucesso: bool, mensagem: str, lista_de_redes: list[dict])
         """
+        # 1. Checa status do adaptador Wi-Fi antes de tentar o scan
+        adapter_ok, adapter_msg = WiFiScanner.check_adapter_status()
+        if not adapter_ok:
+            return False, adapter_msg, []
+
+        if cancel_checker and cancel_checker():
+            return False, "Varredura Wi-Fi cancelada pelo usuário.", []
+
+        # 2. Executa comando netsh de varredura
         try:
             output = subprocess.check_output(
                 "netsh wlan show networks mode=bssid",
                 encoding="cp850",
                 errors="replace",
                 creationflags=_NO_WINDOW,
-                timeout=5.0,
+                timeout=6.0,
             )
+
+            if cancel_checker and cancel_checker():
+                return False, "Varredura Wi-Fi cancelada pelo usuário.", []
 
             if not isinstance(output, str):
                 output = output.decode("cp850", errors="replace")
 
             networks = WiFiScanner._parse_netsh_output(output)
             if not networks:
-                return True, "Nenhuma rede Wi-Fi encontrada ao alcance.", []
+                return True, "Nenhuma rede Wi-Fi foi encontrada.", []
 
             return True, f"{len(networks)} BSSIDs de rede encontrados.", networks
 
         except subprocess.TimeoutExpired:
             return False, "Tempo de espera da busca Wi-Fi esgotado.", []
-        except subprocess.CalledProcessError as e:
-            return False, (
-                "Serviço Wi-Fi (wlansvc) desativado ou adaptador Wi-Fi não encontrado.\n"
-                "Verifique se a placa de rede sem fio está habilitada no Windows."
-            ), []
+        except subprocess.CalledProcessError:
+            return False, "Nenhum adaptador Wi-Fi habilitado foi encontrado.", []
         except Exception as e:
             return False, f"Erro ao acessar adaptador Wi-Fi: {str(e)}", []
-
-    # ================================================================
-    # Parser Bilíngue (PT-BR e EN-US)
-    # ================================================================
 
     @staticmethod
     def _parse_netsh_output(output: str) -> list[dict]:

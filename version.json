@@ -1,9 +1,10 @@
 {
-    "version": "1.5.1",
+    "version": "1.6.0",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.5.1/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.6.0/CedNet_Help.zip",
     "changelog": [
-        "Ajustada a duracao da simulacao do Modo Demo para ~8s por etapa com maior veracidade"
+        "Correcao definitiva da aba Canais Wi-Fi com verificacao automatica de adaptador",
+        "mensagens claras e fim de travamento"
     ],
-    "sha256": "f16cb880c9543b31b0d9ba21b51ff1362132f861018570664f6ea85a10622613"
+    "sha256": "9fb05c39eb37185e4d5ee6024e701860fea4e2d4cbd8bad17d4c540b429cd97c"
 }
