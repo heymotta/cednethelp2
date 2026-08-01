@@ -80,7 +80,7 @@ class Sidebar(ctk.CTkFrame):
             ("router",     "📡  Roteador"),
             ("ip_config",  "⚙️  Config. IP"),
             ("scanner",    "🔍  Scanner"),
-            ("ubiquiti_scanner", "📡  Scanner Ubiquiti"),
+            ("ubiquiti_scanner", "📡  Ubnt"),
             ("wifi",       "📡  Canais Wi-Fi"),
             ("dns_test",   "⚡  Teste de DNS"),
             ("speedtest",  "⚡  Speed Test"),

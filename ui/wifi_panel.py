@@ -312,17 +312,25 @@ class WiFiPanel(ctk.CTkFrame):
 
     def _scan_thread_worker(self):
         """Worker que chama o WiFiScanner."""
-        success, message, networks = WiFiScanner.scan_networks()
+        success = False
+        message = "Não foi possível concluir a varredura Wi-Fi."
+        networks: list[dict] = []
+        analysis: dict = {}
 
-        analysis = {}
-        if success and networks:
-            analysis = WiFiScanner.analyze_spectrum(networks)
+        try:
+            success, message, networks = WiFiScanner.scan_networks()
+            if success and networks:
+                analysis = WiFiScanner.analyze_spectrum(networks)
+        except Exception as exc:
+            # Nenhuma exceção do worker pode deixar a UI presa em "Escaneando...".
+            message = f"Erro ao processar a varredura Wi-Fi: {exc}"
 
-        # Atualiza a UI na thread principal via after()
+        # Atualiza a UI na thread principal via after(), inclusive em caso de erro.
         try:
             self.after(0, lambda: self._on_scan_complete(success, message, networks, analysis))
         except RuntimeError:
-            pass
+            # O widget pode ter sido destruído durante a varredura.
+            self._is_scanning = False
 
     def _on_scan_complete(self, success: bool, message: str, networks: list[dict], analysis: dict):
         """Callback acionado ao concluir a varredura."""

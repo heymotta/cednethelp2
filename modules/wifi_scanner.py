@@ -45,6 +45,9 @@ class WiFiScanner:
                 timeout=5.0,
             )
 
+            if not isinstance(output, str):
+                output = output.decode("cp850", errors="replace")
+
             networks = WiFiScanner._parse_netsh_output(output)
             if not networks:
                 return True, "Nenhuma rede Wi-Fi encontrada ao alcance.", []

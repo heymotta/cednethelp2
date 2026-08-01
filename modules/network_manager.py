@@ -122,7 +122,10 @@ class NetworkManager:
 
             # Prepara o novo estado
             gateway = new_info.get("gateway", "")
-            if gateway == "Não disponível":
+            status = new_info.get("status", {})
+            if (gateway == "Não disponível"
+                    or not status.get("connected", False)
+                    or new_info.get("ipv4") in ("", "Não disponível")):
                 gateway = ""
 
             new_state = {
@@ -131,7 +134,7 @@ class NetworkManager:
                 "mask": str(new_info.get("mask", "Não disponível")),
                 "dns": str(new_info.get("dns", "Não disponível")),
                 "interface": str(new_info.get("interface", "Não detectada")),
-                "status": new_info.get("status", {"connected": False, "label": "Desconhecido", "emoji": "⚪"}),
+                "status": status,
                 "speed": str(new_info.get("speed", "N/A")),
                 "log_text": log_text,
             }
@@ -149,7 +152,18 @@ class NetworkManager:
                 self.version += 1
 
         except Exception as e:
-            pass
+            # Uma falha de coleta não pode manter o gateway da coleta anterior.
+            self.state = {
+                "ipv4": "Não disponível",
+                "gateway": "",
+                "mask": "Não disponível",
+                "dns": "Não disponível",
+                "interface": "Não detectada",
+                "status": {"connected": False, "label": "Status desconhecido", "emoji": "⚪"},
+                "speed": "N/A",
+                "log_text": f"Falha ao atualizar informações de rede: {e}",
+            }
+            self.version += 1
 
     # ================================================================
     # Consulta de Estado

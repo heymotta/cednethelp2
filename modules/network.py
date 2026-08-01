@@ -67,7 +67,6 @@ class NetworkInfo:
     """Classe responsável por coletar informações da interface de rede."""
 
     def __init__(self):
-        self._cached_interface: Optional[str] = None
         self.last_detection_log: Optional[GatewayDetectionLog] = None
 
     # ================================================================
@@ -97,7 +96,7 @@ class NetworkInfo:
 
     def _get_active_interface(self) -> Optional[str]:
         """
-        Detecta a interface de rede ativa (não loopback, com IPv4).
+        Detecta a interface de rede ativa (não loopback, UP e com IPv4).
         Prioriza interfaces UP com endereço IPv4 válido.
         Ignora interfaces de VPN/virtuais como Tailscale.
         """
@@ -112,7 +111,6 @@ class NetworkInfo:
                 "isatap", "teredo",
             )
 
-            # Primeira passagem: interface física UP com IPv4 válido
             for iface, stat in stats.items():
                 if iface.lower().startswith(virtual_prefixes):
                     continue
@@ -121,19 +119,13 @@ class NetworkInfo:
                         if (addr.family == socket.AF_INET
                                 and not addr.address.startswith("127.")
                                 and not addr.address.startswith("100.")):  # Tailscale CGNAT
-                            self._cached_interface = iface
                             return iface
-
-            # Segunda passagem: qualquer interface UP não-virtual
-            for iface, stat in stats.items():
-                if not iface.lower().startswith(virtual_prefixes) and stat.isup:
-                    self._cached_interface = iface
-                    return iface
 
         except Exception:
             pass
 
-        return self._cached_interface
+        # Nunca reutiliza uma interface que pode ter sido desconectada.
+        return None
 
     # ================================================================
     # Detecção de Gateway com Fallback em Cadeia
@@ -156,18 +148,17 @@ class NetworkInfo:
         self.last_detection_log = log
 
         # Lista de métodos a tentar, em ordem de confiabilidade
-        methods = [
-            ("route print", self._gateway_via_route_print),
-            ("netsh", self._gateway_via_netsh),
-            ("ipconfig", self._gateway_via_ipconfig),
-            ("psutil/socket", self._gateway_via_psutil),
-            ("wmic", self._gateway_via_wmic),
-        ]
+        # A tabela de rotas é a única fonte que associa explicitamente o
+        # gateway ao IPv4 da interface atualmente ativa. Os demais métodos
+        # retornam dados de todas as interfaces e podem trazer uma interface
+        # desconectada ou uma configuração antiga.
+        methods = [("route print", self._gateway_via_route_print)]
 
         for method_name, method_func in methods:
             try:
                 gateway = method_func()
-                if gateway and self._is_valid_ipv4(gateway):
+                if (gateway and self._is_valid_ipv4(gateway)
+                        and self._is_current_connection_valid()):
                     # Sucesso — registra no log e retorna
                     iface = self._get_interface_name()
                     ipv4 = self._get_ipv4()
@@ -197,6 +188,10 @@ class NetworkInfo:
             timeout=5,
         )
 
+        current_ipv4 = self._get_ipv4()
+        if not self._is_valid_ipv4(current_ipv4):
+            return ""
+
         # Formato: "0.0.0.0   0.0.0.0   192.168.1.1   192.168.1.8   25"
         # O gateway é o terceiro campo de IPv4 na linha com destino 0.0.0.0
         for line in output.splitlines():
@@ -208,10 +203,10 @@ class NetworkInfo:
             ips = re.findall(r"\d+\.\d+\.\d+\.\d+", line)
             # ips[0] = destino (0.0.0.0), ips[1] = máscara (0.0.0.0),
             # ips[2] = gateway, ips[3] = IP local
-            if len(ips) >= 3:
+            if len(ips) >= 4:
                 candidate = ips[2]
-                # Ignora se o gateway é 0.0.0.0 (rota local)
-                if candidate != "0.0.0.0":
+                # O quarto campo é o IPv4 local da interface da rota.
+                if candidate != "0.0.0.0" and ips[3] == current_ipv4:
                     return candidate
 
         return ""
@@ -348,13 +343,21 @@ class NetworkInfo:
                         if addr.family == socket.AF_INET:
                             return addr.address
 
-            # Fallback: socket UDP para descobrir IP local
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.connect(("8.8.8.8", 80))
-                return s.getsockname()[0]
-
         except Exception:
             return "Não disponível"
+
+        return "Não disponível"
+
+    def _is_current_connection_valid(self) -> bool:
+        """Confirma interface UP e IPv4 válido no instante da consulta."""
+        iface = self._get_active_interface()
+        if not iface:
+            return False
+        try:
+            return bool(psutil.net_if_stats()[iface].isup and
+                        self._is_valid_ipv4(self._get_ipv4()))
+        except (KeyError, OSError):
+            return False
 
     def _get_gateway(self) -> str:
         """Wrapper simples — usa o método com fallback."""

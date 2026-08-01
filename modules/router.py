@@ -47,10 +47,16 @@ def open_router_page(gateway_ip: str = "") -> tuple[bool, str, str]:
         Tupla (sucesso: bool, mensagem: str, log: str).
     """
     state = network_manager.get_state()
-    target_gateway = gateway_ip or state.get("gateway", "")
+    status = state.get("status", {})
+    target_gateway = state.get("gateway", "")
     log_text = state.get("log_text", "")
 
-    if not target_gateway or target_gateway == "Não disponível":
+    # O endereço informado pela UI pode ter ficado obsoleto desde o último
+    # polling. O serviço central é a fonte atual e deve validar a conexão.
+    if (not status.get("connected", False)
+            or state.get("ipv4") in ("", "Não disponível")
+            or not target_gateway
+            or target_gateway == "Não disponível"):
         return (
             False,
             "Não foi possível detectar o Gateway Padrão.\n"

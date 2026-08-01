@@ -209,12 +209,18 @@ class RouterPanel(ctk.CTkFrame):
     def _render_state(self, state: dict):
         """Atualiza a UI com o estado sincronizado da rede."""
         gateway = state.get("gateway", "")
+        status = state.get("status", {})
+        has_gateway = bool(
+            status.get("connected", False)
+            and state.get("ipv4") not in ("", "Não disponível", "Carregando...")
+            and gateway
+        )
         log_text = state.get("log_text", "")
-        self._gateway = gateway
+        self._gateway = gateway if has_gateway else ""
 
         self._update_log(log_text)
 
-        if gateway:
+        if has_gateway:
             # 🟢 Gateway encontrado
             self.status_emoji.configure(text="🟢")
             self.status_label.configure(
@@ -232,13 +238,13 @@ class RouterPanel(ctk.CTkFrame):
             # 🔴 Gateway não encontrado
             self.status_emoji.configure(text="🔴")
             self.status_label.configure(
-                text="Gateway Não Detectado",
+                text="Nenhum roteador detectado.",
                 text_color=COLORS["status_error"],
             )
-            self.status_detail.configure(text="Verifique sua conexão de rede")
+            self.status_detail.configure(text="Verifique se há uma interface conectada")
             self.status_card.configure(border_width=2, border_color=COLORS["status_error"])
             self.gateway_label.configure(
-                text="Não detectado — verifique sua conexão",
+                text="Nenhum roteador detectado.",
                 text_color=COLORS["status_error"],
             )
             self.btn_open.configure(state="disabled")
