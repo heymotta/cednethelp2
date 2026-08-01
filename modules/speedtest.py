@@ -353,14 +353,12 @@ class SpeedTestRunner:
         }
 
     # ================================================================
-    # Execução via Ookla Speedtest.exe Oficial
+    # Execução via Ookla Speedtest.exe Oficial (Streaming JSONL)
     # ================================================================
 
     def _run_ookla_engine(self, bin_path: str, on_progress: Callable) -> Optional[dict]:
         if self._cancel_requested:
             return None
-
-        on_progress(30, "Executando Ookla Speedtest CLI oficial...", {})
 
         try:
             kwargs = {
@@ -370,49 +368,166 @@ class SpeedTestRunner:
                 "text": True,
                 "encoding": "utf-8",
                 "errors": "replace",
+                "bufsize": 1,
             }
             if hasattr(subprocess, "CREATE_NO_WINDOW"):
                 kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
             self._process = subprocess.Popen(
-                [bin_path, "--format=json", "--accept-license", "--accept-gdpr"],
+                [bin_path, "-f", "jsonl", "-p", "yes", "--accept-license", "--accept-gdpr"],
                 **kwargs
             )
 
-            stdout, _ = self._process.communicate(timeout=60)
-            if not stdout:
-                return None
-
-            data = json.loads(stdout)
-
-            download_mbps = round(data.get("download", {}).get("bandwidth", 0) * 8 / 1e6, 2)
-            upload_mbps = round(data.get("upload", {}).get("bandwidth", 0) * 8 / 1e6, 2)
-            ping_ms = round(data.get("ping", {}).get("latency", 0), 1)
-            jitter_ms = round(data.get("ping", {}).get("jitter", 0), 1)
-            packet_loss = round(data.get("packetLoss", 0.0), 1)
-
-            isp = data.get("isp", "CedNet Telecom")
-            public_ip = data.get("interface", {}).get("externalIp", "—")
-
-            srv = data.get("server", {})
-            server_name = srv.get("name", "Servidor Ookla")
-            server_loc = f"{srv.get('location', '')} - {srv.get('country', '')}"
-
-            return {
-                "download_mbps": download_mbps,
-                "upload_mbps": upload_mbps,
-                "ping_ms": ping_ms,
-                "jitter_ms": jitter_ms,
-                "packet_loss_pct": packet_loss,
-                "isp": isp,
-                "public_ip": public_ip,
-                "server_name": server_name,
-                "server_location": server_loc,
-                "distance_km": 0,
-                "engine": "Ookla Speedtest CLI",
+            partial_state = {
+                "phase": "init",
+                "download_mbps": 0.0,
+                "upload_mbps": 0.0,
+                "download_max_mbps": 0.0,
+                "upload_max_mbps": 0.0,
+                "ping_ms": 0.0,
+                "jitter_ms": 0.0,
+                "packet_loss_pct": 0.0,
+                "isp": "—",
+                "public_ip": "—",
+                "server_name": "—",
+                "server_location": "—",
+                "progress_pct": 5,
+                "step_label": "🟢 Conectando...",
             }
+            on_progress(5, "🟢 Conectando aos servidores Ookla...", partial_state.copy())
+
+            final_result = None
+
+            while True:
+                if self._cancel_requested:
+                    if self._process:
+                        try:
+                            self._process.terminate()
+                        except Exception:
+                            pass
+                    return None
+
+                line = self._process.stdout.readline()
+                if not line:
+                    break
+
+                line_str = line.strip()
+                if not line_str or not line_str.startswith("{"):
+                    continue
+
+                try:
+                    data = json.loads(line_str)
+                except Exception:
+                    continue
+
+                event_type = data.get("type")
+
+                if event_type == "testStart":
+                    partial_state["phase"] = "server"
+                    partial_state["step_label"] = "🟢 Escolhendo melhor servidor..."
+                    partial_state["progress_pct"] = 15
+
+                    if "isp" in data:
+                        partial_state["isp"] = data["isp"]
+                    if "interface" in data and "externalIp" in data["interface"]:
+                        partial_state["public_ip"] = data["interface"]["externalIp"]
+                    if "server" in data:
+                        srv = data["server"]
+                        partial_state["server_name"] = srv.get("name", "—")
+                        loc = srv.get("location", "")
+                        country = srv.get("country", "")
+                        partial_state["server_location"] = f"{loc} - {country}".strip(" -")
+                    
+                    on_progress(15, partial_state["step_label"], partial_state.copy())
+
+                elif event_type == "ping":
+                    partial_state["phase"] = "ping"
+                    partial_state["step_label"] = "🟢 Medindo latência (Ping/Jitter)..."
+                    png = data.get("ping", {})
+                    partial_state["ping_ms"] = round(png.get("latency", 0), 1)
+                    partial_state["jitter_ms"] = round(png.get("jitter", 0), 1)
+                    prog = png.get("progress", 0)
+                    partial_state["progress_pct"] = int(20 + prog * 10)
+
+                    on_progress(partial_state["progress_pct"], partial_state["step_label"], partial_state.copy())
+
+                elif event_type == "download":
+                    partial_state["phase"] = "download"
+                    partial_state["step_label"] = "🟢 Medindo Download..."
+                    dl = data.get("download", {})
+                    bw = dl.get("bandwidth", 0)
+                    cur_mbps = round(bw * 8 / 1e6, 2)
+                    partial_state["download_mbps"] = cur_mbps
+                    if cur_mbps > partial_state["download_max_mbps"]:
+                        partial_state["download_max_mbps"] = cur_mbps
+
+                    prog = dl.get("progress", 0)
+                    partial_state["progress_pct"] = int(30 + prog * 35)
+
+                    on_progress(partial_state["progress_pct"], partial_state["step_label"], partial_state.copy())
+
+                elif event_type == "upload":
+                    partial_state["phase"] = "upload"
+                    partial_state["step_label"] = "🟢 Medindo Upload..."
+                    ul = data.get("upload", {})
+                    bw = ul.get("bandwidth", 0)
+                    cur_mbps = round(bw * 8 / 1e6, 2)
+                    partial_state["upload_mbps"] = cur_mbps
+                    if cur_mbps > partial_state["upload_max_mbps"]:
+                        partial_state["upload_max_mbps"] = cur_mbps
+
+                    prog = ul.get("progress", 0)
+                    partial_state["progress_pct"] = int(65 + prog * 30)
+
+                    on_progress(partial_state["progress_pct"], partial_state["step_label"], partial_state.copy())
+
+                elif event_type == "result":
+                    partial_state["phase"] = "complete"
+                    partial_state["step_label"] = "✔ Teste concluído"
+                    partial_state["progress_pct"] = 100
+
+                    download_mbps = round(data.get("download", {}).get("bandwidth", 0) * 8 / 1e6, 2)
+                    upload_mbps = round(data.get("upload", {}).get("bandwidth", 0) * 8 / 1e6, 2)
+                    ping_ms = round(data.get("ping", {}).get("latency", 0), 1)
+                    jitter_ms = round(data.get("ping", {}).get("jitter", 0), 1)
+                    packet_loss = round(data.get("packetLoss", 0.0), 1)
+
+                    isp = data.get("isp", partial_state.get("isp", "CedNet Telecom"))
+                    public_ip = data.get("interface", {}).get("externalIp", partial_state.get("public_ip", "—"))
+
+                    srv = data.get("server", {})
+                    server_name = srv.get("name", partial_state.get("server_name", "Servidor Ookla"))
+                    loc = srv.get("location", "")
+                    country = srv.get("country", "")
+                    server_loc = f"{loc} - {country}".strip(" -") if loc else partial_state.get("server_location", "—")
+
+                    final_result = {
+                        "download_mbps": download_mbps,
+                        "upload_mbps": upload_mbps,
+                        "download_max_mbps": max(download_mbps, partial_state["download_max_mbps"]),
+                        "upload_max_mbps": max(upload_mbps, partial_state["upload_max_mbps"]),
+                        "ping_ms": ping_ms,
+                        "jitter_ms": jitter_ms,
+                        "packet_loss_pct": packet_loss,
+                        "isp": isp,
+                        "public_ip": public_ip,
+                        "server_name": server_name,
+                        "server_location": server_loc,
+                        "distance_km": 0,
+                        "engine": "Ookla Speedtest CLI",
+                    }
+                    on_progress(100, "✔ Teste concluído", final_result.copy())
+
+            if self._process:
+                try:
+                    self._process.wait(timeout=3)
+                except Exception:
+                    pass
+
+            return final_result or (partial_state if partial_state.get("download_mbps", 0) > 0 else None)
+
         except Exception as exc:
-            print(f"Erro no Ookla Engine: {exc}")
+            print(f"Erro no Ookla Engine streaming: {exc}")
             return None
 
     # ================================================================

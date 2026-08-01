@@ -1,10 +1,10 @@
 {
-    "version": "1.3.1",
+    "version": "1.4.0",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.3.1/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.4.0/CedNet_Help.zip",
     "changelog": [
-        "Melhorias de robustez no Scan Wi-Fi",
-        "validacao estrita de Gateway por IPv4 e tratamento de desconexao"
+        "Redesign completo e interativo da aba Speed Test com velocimetro circular animado",
+        "grafico de velocidade em tempo real e integracao JSONL com a CLI oficial da Ookla"
     ],
-    "sha256": "58d561421107d285c8da6e59ff9757ffe403db81e7837e72358e82a782289bd7"
+    "sha256": "5bff3f433628dce2c2f0e92d2197649b73fa1dc0511df4c075e4eea4bf0a1f5b"
 }

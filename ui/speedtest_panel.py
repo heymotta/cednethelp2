@@ -1,7 +1,7 @@
 """
-CedNet Help - Painel de Speed Test (Teste de Velocidade)
-Interface moderna para medição de velocidade (Download, Upload, Ping, Jitter, Perda),
-detecção de ISP/IP, histórico local armazenado e exportação de relatórios.
+CedNet Help - Painel de Speed Test (Redesign Interativo em Tempo Real)
+Interface inspirada no Speedtest.net com velocímetro animado em Canvas,
+gráfico em tempo real, cronômetro, rastreador de etapas e integração com streaming do Ookla CLI.
 """
 
 import customtkinter as ctk
@@ -10,6 +10,7 @@ import os
 import queue
 from tkinter import filedialog
 from typing import Optional
+
 from modules.speedtest import (
     SpeedTestRunner,
     SpeedTestHistory,
@@ -19,11 +20,14 @@ from modules.speedtest import (
     load_settings,
     save_setting,
 )
+from modules.network_manager import network_manager
 from modules.utils import COLORS, FONTS
+from ui.components.speedometer import SpeedometerCanvas
+from ui.components.speedtest_chart import RealtimeChartCanvas
 
 
 class SpeedTestPanel(ctk.CTkFrame):
-    """Painel principal do Speed Test."""
+    """Painel principal do Speed Test com UI animada em tempo real."""
 
     def __init__(self, parent):
         super().__init__(parent, fg_color="transparent")
@@ -32,44 +36,29 @@ class SpeedTestPanel(ctk.CTkFrame):
         self._custom_engine_path: str = load_settings().get("speedtest_cli_path", "")
         self._latest_result: Optional[dict] = None
 
-        # Fila thread-safe para comunicação entre a thread de teste e a GUI
+        # Fila thread-safe para comunicação entre worker e GUI
         self._ui_queue = queue.Queue()
         self._poll_after_id: Optional[str] = None
+
+        # Cronômetro do teste
+        self._test_start_time: Optional[float] = None
+        self._timer_after_id: Optional[str] = None
+
+        # Estado da fase atual
+        self._current_phase = "idle"  # idle, server, ping, download, upload, complete
 
         self._create_ui()
         self._load_history_table()
         self._start_queue_polling()
         self._update_engine_badge()
-
-    def _update_engine_badge(self):
-        engine_type, path = detect_speedtest_engine(self._custom_engine_path)
-        if engine_type in ("ookla", "cli"):
-            label = "Ookla Speedtest CLI" if engine_type == "ookla" else "Speedtest CLI"
-            self.lbl_engine_badge.configure(
-                text=f"⚙️ {label}",
-                text_color=COLORS["accent_cyan"]
-            )
-            self.lbl_status.configure(
-                text="Pronto para iniciar o teste de velocidade",
-                text_color=COLORS["text_secondary"]
-            )
-        else:
-            self.lbl_engine_badge.configure(
-                text="⚠️ CLI não encontrado",
-                text_color=COLORS["status_warning"]
-            )
-            self.lbl_status.configure(
-                text="Speedtest CLI não encontrado. Selecione o executável para continuar.",
-                text_color=COLORS["status_warning"]
-            )
-
+        self._update_network_banner()
 
     # ================================================================
     # Construção da UI
     # ================================================================
 
     def _create_ui(self):
-        """Monta a interface completa do Speed Test."""
+        """Monta a interface interativa completa."""
         container = ctk.CTkScrollableFrame(
             self,
             fg_color="transparent",
@@ -77,30 +66,25 @@ class SpeedTestPanel(ctk.CTkFrame):
         )
         container.pack(fill="both", expand=True, padx=5, pady=5)
 
-        # ---- 1. Cabeçalho + Controles ----
-        header_card = ctk.CTkFrame(
-            container,
-            fg_color=COLORS["bg_card"],
-            corner_radius=12,
-        )
-        header_card.pack(fill="x", pady=(0, 12))
+        # ---- 1. Cabeçalho + Informações de Rede Pré-Teste ----
+        header_card = ctk.CTkFrame(container, fg_color=COLORS["bg_card"], corner_radius=12)
+        header_card.pack(fill="x", pady=(0, 10))
 
         header_inner = ctk.CTkFrame(header_card, fg_color="transparent")
-        header_inner.pack(fill="x", padx=20, pady=15)
+        header_inner.pack(fill="x", padx=18, pady=12)
 
-        # Título + Subtítulo
+        # Título + Engine Badge
         title_frame = ctk.CTkFrame(header_inner, fg_color="transparent")
-        title_frame.pack(fill="x", pady=(0, 12))
+        title_frame.pack(fill="x", pady=(0, 8))
 
         ctk.CTkLabel(
             title_frame,
-            text="⚡  Speed Test",
+            text="⚡  Speed Test Interativo",
             font=FONTS["title"],
             text_color=COLORS["text_primary"],
             anchor="w",
         ).pack(side="left")
 
-        # Engine badge (Ookla / Speedtest CLI)
         self.lbl_engine_badge = ctk.CTkLabel(
             title_frame,
             text="⚙️ Detectando...",
@@ -110,60 +94,77 @@ class SpeedTestPanel(ctk.CTkFrame):
         )
         self.lbl_engine_badge.pack(side="right")
 
+        # Banner de Conexão Pré-Teste (IP Local, Gateway, Interface)
+        self.net_banner = ctk.CTkFrame(header_inner, fg_color=COLORS["entry_bg"], corner_radius=8)
+        self.net_banner.pack(fill="x")
 
-        # Botões de Iniciar / Cancelar
-        ctrl_frame = ctk.CTkFrame(header_inner, fg_color="transparent")
-        ctrl_frame.pack(fill="x")
+        net_inner = ctk.CTkFrame(self.net_banner, fg_color="transparent")
+        net_inner.pack(fill="x", padx=12, pady=6)
 
-        self.btn_start = ctk.CTkButton(
-            ctrl_frame,
-            text="Iniciar Teste",
-            font=FONTS["body_bold"],
-            height=44,
-            corner_radius=10,
-            fg_color=COLORS["accent"],
-            hover_color=COLORS["accent_hover"],
-            command=self._start_test,
+        self.lbl_net_info = ctk.CTkLabel(
+            net_inner,
+            text="🌐 Conexão: IPv4: Carregando... | Gateway: Carregando... | Interface: Carregando...",
+            font=FONTS["small"],
+            text_color=COLORS["text_secondary"],
+            anchor="w",
         )
-        self.btn_start.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        self.lbl_net_info.pack(side="left")
 
-        self.btn_cancel = ctk.CTkButton(
-            ctrl_frame,
-            text="Cancelar",
-            font=FONTS["body_bold"],
-            width=140,
-            height=44,
-            corner_radius=10,
-            fg_color=COLORS["bg_sidebar"],
-            hover_color=COLORS["bg_card_hover"],
-            command=self._cancel_test,
-            state="disabled",
+        self.lbl_timer = ctk.CTkLabel(
+            net_inner,
+            text="⏱️ 00:00",
+            font=FONTS["mono_bold"],
+            text_color=COLORS["accent_cyan"],
+            anchor="e",
         )
-        self.btn_cancel.pack(side="right", padx=(5, 0))
+        self.lbl_timer.pack(side="right")
 
-        # ---- 2. Progresso & Status do Teste ----
-        self.progress_card = ctk.CTkFrame(
-            container,
-            fg_color=COLORS["bg_card"],
-            corner_radius=10,
-        )
-        self.progress_card.pack(fill="x", pady=(0, 12))
+        # ---- 2. Barra de Progresso + Etapas do Teste ----
+        steps_card = ctk.CTkFrame(container, fg_color=COLORS["bg_card"], corner_radius=10)
+        steps_card.pack(fill="x", pady=(0, 10))
 
-        p_inner = ctk.CTkFrame(self.progress_card, fg_color="transparent")
-        p_inner.pack(fill="x", padx=15, pady=10)
+        s_inner = ctk.CTkFrame(steps_card, fg_color="transparent")
+        s_inner.pack(fill="x", padx=15, pady=10)
 
+        # Rótulos dos Passos/Etapas
+        self.step_frames: dict[str, ctk.CTkLabel] = {}
+        steps_grid = ctk.CTkFrame(s_inner, fg_color="transparent")
+        steps_grid.pack(fill="x", pady=(0, 6))
+        steps_grid.columnconfigure((0, 1, 2, 3, 4), weight=1)
+
+        steps_def = [
+            ("server", "1. 🟢 Servidor"),
+            ("ping", "2. ⏱️ Latência"),
+            ("download", "3. 🚀 Download"),
+            ("upload", "4. 📤 Upload"),
+            ("complete", "5. ✔ Concluído"),
+        ]
+
+        for key, text in steps_def:
+            lbl = ctk.CTkLabel(
+                steps_grid,
+                text=text,
+                font=FONTS["small_bold"],
+                text_color=COLORS["text_secondary"],
+                anchor="center",
+            )
+            col_idx = len(self.step_frames)
+            lbl.grid(row=0, column=col_idx, sticky="ew")
+            self.step_frames[key] = lbl
+
+        # Barra de progresso linear
         self.progress_bar = ctk.CTkProgressBar(
-            p_inner,
-            height=10,
-            corner_radius=5,
+            s_inner,
+            height=8,
+            corner_radius=4,
             progress_color=COLORS["accent"],
             fg_color=COLORS["entry_bg"],
         )
-        self.progress_bar.pack(fill="x", pady=(0, 6))
+        self.progress_bar.pack(fill="x", pady=(4, 4))
         self.progress_bar.set(0.0)
 
         self.lbl_status = ctk.CTkLabel(
-            p_inner,
+            s_inner,
             text="Pronto para iniciar o teste de velocidade",
             font=FONTS["body_bold"],
             text_color=COLORS["text_secondary"],
@@ -171,66 +172,127 @@ class SpeedTestPanel(ctk.CTkFrame):
         )
         self.lbl_status.pack(anchor="w")
 
-        # ---- 3. Cards de Métricas Principais (Download, Upload, Ping, Jitter) ----
-        metrics_grid = ctk.CTkFrame(container, fg_color="transparent")
-        metrics_grid.pack(fill="x", pady=(0, 12))
-        metrics_grid.columnconfigure((0, 1, 2, 3), weight=1)
+        # ---- 3. Área Central: Velocímetro + Métricas em Tempo Real ----
+        center_row = ctk.CTkFrame(container, fg_color="transparent")
+        center_row.pack(fill="x", pady=(0, 10))
+        center_row.columnconfigure(0, weight=0)  # Velocímetro
+        center_row.columnconfigure(1, weight=1)  # Cards de Métricas
 
-        # Card Download
-        card_dl = ctk.CTkFrame(metrics_grid, fg_color=COLORS["bg_card"], corner_radius=12)
-        card_dl.grid(row=0, column=0, padx=3, pady=3, sticky="nsew")
-        inner_dl = ctk.CTkFrame(card_dl, fg_color="transparent")
-        inner_dl.pack(fill="x", padx=15, pady=15)
-        ctk.CTkLabel(inner_dl, text="🚀  DOWNLOAD", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
-        self.lbl_download = ctk.CTkLabel(inner_dl, text="— Mbps", font=("Consolas", 22, "bold"), text_color=COLORS["accent_cyan"], anchor="w")
-        self.lbl_download.pack(anchor="w", pady=(4, 0))
+        # Card do Velocímetro Canvas
+        gauge_card = ctk.CTkFrame(center_row, fg_color=COLORS["bg_card"], corner_radius=12)
+        gauge_card.grid(row=0, column=0, padx=(0, 5), sticky="nsew")
 
-        # Card Upload
-        card_ul = ctk.CTkFrame(metrics_grid, fg_color=COLORS["bg_card"], corner_radius=12)
-        card_ul.grid(row=0, column=1, padx=3, pady=3, sticky="nsew")
-        inner_ul = ctk.CTkFrame(card_ul, fg_color="transparent")
-        inner_ul.pack(fill="x", padx=15, pady=15)
-        ctk.CTkLabel(inner_ul, text="📤  UPLOAD", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
-        self.lbl_upload = ctk.CTkLabel(inner_ul, text="— Mbps", font=("Consolas", 22, "bold"), text_color=COLORS["status_ok"], anchor="w")
-        self.lbl_upload.pack(anchor="w", pady=(4, 0))
+        gauge_inner = ctk.CTkFrame(gauge_card, fg_color="transparent")
+        gauge_inner.pack(padx=10, pady=10)
 
-        # Card Ping
-        card_ping = ctk.CTkFrame(metrics_grid, fg_color="transparent")
-        card_ping.grid(row=0, column=2, padx=3, pady=3, sticky="nsew")
-        card_ping_frame = ctk.CTkFrame(card_ping, fg_color=COLORS["bg_card"], corner_radius=12)
-        card_ping_frame.pack(fill="both", expand=True)
-        inner_ping = ctk.CTkFrame(card_ping_frame, fg_color="transparent")
-        inner_ping.pack(fill="x", padx=15, pady=15)
-        ctk.CTkLabel(inner_ping, text="⏱️  PING (Latência)", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
-        self.lbl_ping = ctk.CTkLabel(inner_ping, text="— ms", font=("Consolas", 22, "bold"), text_color=COLORS["accent_cyan"], anchor="w")
-        self.lbl_ping.pack(anchor="w", pady=(4, 0))
-
-        # Card Jitter / Loss
-        card_jit = ctk.CTkFrame(metrics_grid, fg_color="transparent")
-        card_jit.grid(row=0, column=3, padx=3, pady=3, sticky="nsew")
-        card_jit_frame = ctk.CTkFrame(card_jit, fg_color=COLORS["bg_card"], corner_radius=12)
-        card_jit_frame.pack(fill="both", expand=True)
-        inner_jit = ctk.CTkFrame(card_jit_frame, fg_color="transparent")
-        inner_jit.pack(fill="x", padx=15, pady=15)
-        ctk.CTkLabel(inner_jit, text="📉  JITTER / PERDA", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
-        self.lbl_jitter = ctk.CTkLabel(inner_jit, text="— ms", font=("Consolas", 22, "bold"), text_color=COLORS["text_primary"], anchor="w")
-        self.lbl_jitter.pack(anchor="w", pady=(4, 0))
-
-        # ---- 4. Card de Detalhes da Conexão (ISP, IP, Servidor) ----
-        details_card = ctk.CTkFrame(
-            container,
-            fg_color=COLORS["bg_card"],
-            corner_radius=12,
+        self.speedometer = SpeedometerCanvas(
+            gauge_inner, width=230, height=210, bg_color=COLORS["bg_card"]
         )
-        details_card.pack(fill="x", pady=(0, 12))
+        self.speedometer.pack()
 
-        det_inner = ctk.CTkFrame(details_card, fg_color="transparent")
-        det_inner.pack(fill="x", padx=20, pady=15)
+        # Botão Principal Ação (Iniciar / Cancelar / Novo Teste)
+        self.btn_action = ctk.CTkButton(
+            gauge_inner,
+            text="🚀  Iniciar Teste",
+            font=FONTS["body_bold"],
+            height=40,
+            corner_radius=8,
+            fg_color=COLORS["accent"],
+            hover_color=COLORS["accent_hover"],
+            command=self._on_action_click,
+        )
+        self.btn_action.pack(fill="x", pady=(4, 0))
+
+        # Cards de Métricas em Tempo Real (Direita)
+        metrics_card = ctk.CTkFrame(center_row, fg_color=COLORS["bg_card"], corner_radius=12)
+        metrics_card.grid(row=0, column=1, padx=(5, 0), sticky="nsew")
+
+        m_inner = ctk.CTkFrame(metrics_card, fg_color="transparent")
+        m_inner.pack(fill="both", expand=True, padx=15, pady=12)
+
+        m_grid = ctk.CTkFrame(m_inner, fg_color="transparent")
+        m_grid.pack(fill="both", expand=True)
+        m_grid.columnconfigure((0, 1), weight=1)
+        m_grid.rowconfigure((0, 1), weight=1)
+
+        # Download Metric Card
+        c_dl = ctk.CTkFrame(m_grid, fg_color=COLORS["entry_bg"], corner_radius=8)
+        c_dl.grid(row=0, column=0, padx=3, pady=3, sticky="nsew")
+        cdl_i = ctk.CTkFrame(c_dl, fg_color="transparent")
+        cdl_i.pack(fill="both", expand=True, padx=10, pady=8)
+        ctk.CTkLabel(cdl_i, text="🚀  DOWNLOAD", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
+        self.lbl_dl_val = ctk.CTkLabel(cdl_i, text="0.0 Mbps", font=("Consolas", 20, "bold"), text_color=COLORS["accent_cyan"], anchor="w")
+        self.lbl_dl_val.pack(anchor="w")
+        self.lbl_dl_peak = ctk.CTkLabel(cdl_i, text="Pico: 0.0 Mbps", font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w")
+        self.lbl_dl_peak.pack(anchor="w")
+
+        # Upload Metric Card
+        c_ul = ctk.CTkFrame(m_grid, fg_color=COLORS["entry_bg"], corner_radius=8)
+        c_ul.grid(row=0, column=1, padx=3, pady=3, sticky="nsew")
+        cul_i = ctk.CTkFrame(c_ul, fg_color="transparent")
+        cul_i.pack(fill="both", expand=True, padx=10, pady=8)
+        ctk.CTkLabel(cul_i, text="📤  UPLOAD", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
+        self.lbl_ul_val = ctk.CTkLabel(cul_i, text="0.0 Mbps", font=("Consolas", 20, "bold"), text_color=COLORS["status_ok"], anchor="w")
+        self.lbl_ul_val.pack(anchor="w")
+        self.lbl_ul_peak = ctk.CTkLabel(cul_i, text="Pico: 0.0 Mbps", font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w")
+        self.lbl_ul_peak.pack(anchor="w")
+
+        # Ping / Latência Card
+        c_png = ctk.CTkFrame(m_grid, fg_color=COLORS["entry_bg"], corner_radius=8)
+        c_png.grid(row=1, column=0, padx=3, pady=3, sticky="nsew")
+        cpng_i = ctk.CTkFrame(c_png, fg_color="transparent")
+        cpng_i.pack(fill="both", expand=True, padx=10, pady=8)
+        ctk.CTkLabel(cpng_i, text="⏱️  PING (LATÊNCIA)", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
+        self.lbl_ping_val = ctk.CTkLabel(cpng_i, text="— ms", font=("Consolas", 20, "bold"), text_color=COLORS["accent_cyan"], anchor="w")
+        self.lbl_ping_val.pack(anchor="w")
+        self.lbl_jitter_val = ctk.CTkLabel(cpng_i, text="Jitter: — ms", font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w")
+        self.lbl_jitter_val.pack(anchor="w")
+
+        # Perda de Pacotes / Qualidade Card
+        c_loss = ctk.CTkFrame(m_grid, fg_color=COLORS["entry_bg"], corner_radius=8)
+        c_loss.grid(row=1, column=1, padx=3, pady=3, sticky="nsew")
+        closs_i = ctk.CTkFrame(c_loss, fg_color="transparent")
+        closs_i.pack(fill="both", expand=True, padx=10, pady=8)
+        ctk.CTkLabel(closs_i, text="📉  PERDA DE PACOTES", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
+        self.lbl_loss_val = ctk.CTkLabel(closs_i, text="0.0 %", font=("Consolas", 20, "bold"), text_color=COLORS["text_primary"], anchor="w")
+        self.lbl_loss_val.pack(anchor="w")
+        self.lbl_quality = ctk.CTkLabel(closs_i, text="Qualidade: Excelente", font=FONTS["small"], text_color=COLORS["status_ok"], anchor="w")
+        self.lbl_quality.pack(anchor="w")
+
+        # ---- 4. Gráfico Dinâmico em Tempo Real (Canvas) ----
+        chart_card = ctk.CTkFrame(container, fg_color=COLORS["bg_card"], corner_radius=12)
+        chart_card.pack(fill="x", pady=(0, 10))
+
+        chart_inner = ctk.CTkFrame(chart_card, fg_color="transparent")
+        chart_inner.pack(fill="x", padx=15, pady=10)
 
         ctk.CTkLabel(
-            det_inner, text="🌐  Informações da Conexão e Servidor",
-            font=FONTS["heading"], text_color=COLORS["text_primary"], anchor="w"
-        ).pack(anchor="w", pady=(0, 10))
+            chart_inner,
+            text="📊  Gráfico de Banda em Tempo Real",
+            font=FONTS["heading"],
+            text_color=COLORS["text_primary"],
+            anchor="w",
+        ).pack(anchor="w", pady=(0, 6))
+
+        self.chart = RealtimeChartCanvas(
+            chart_inner, width=760, height=130, bg_color=COLORS["bg_card"]
+        )
+        self.chart.pack(fill="x")
+
+        # ---- 5. Card de Detalhes da Conexão ----
+        details_card = ctk.CTkFrame(container, fg_color=COLORS["bg_card"], corner_radius=12)
+        details_card.pack(fill="x", pady=(0, 10))
+
+        det_inner = ctk.CTkFrame(details_card, fg_color="transparent")
+        det_inner.pack(fill="x", padx=15, pady=12)
+
+        ctk.CTkLabel(
+            det_inner,
+            text="🌐  Servidor & Provedor Identificados",
+            font=FONTS["heading"],
+            text_color=COLORS["text_primary"],
+            anchor="w",
+        ).pack(anchor="w", pady=(0, 8))
 
         det_grid = ctk.CTkFrame(det_inner, fg_color="transparent")
         det_grid.pack(fill="x")
@@ -238,12 +300,12 @@ class SpeedTestPanel(ctk.CTkFrame):
 
         self._info_labels: dict[str, ctk.CTkLabel] = {}
         fields = [
-            ("isp",             "Provedor (ISP)",        0, 0),
-            ("public_ip",       "IP Público",            0, 1),
-            ("server_name",     "Servidor de Teste",     0, 2),
-            ("server_location", "Localização / Cidade",  1, 0),
-            ("date_time",       "Data e Hora",           1, 1),
-            ("elapsed",         "Tempo do Teste",        1, 2),
+            ("isp", "Provedor (ISP)", 0, 0),
+            ("public_ip", "IP Público", 0, 1),
+            ("server_name", "Servidor de Teste", 0, 2),
+            ("server_location", "Localização / Cidade", 1, 0),
+            ("date_time", "Data e Hora", 1, 1),
+            ("elapsed", "Tempo Decorrido", 1, 2),
         ]
 
         for key, label, row, col in fields:
@@ -251,20 +313,20 @@ class SpeedTestPanel(ctk.CTkFrame):
             cell.grid(row=row, column=col, padx=3, pady=3, sticky="nsew")
 
             cell_inner = ctk.CTkFrame(cell, fg_color="transparent")
-            cell_inner.pack(fill="x", padx=10, pady=8)
+            cell_inner.pack(fill="x", padx=10, pady=6)
 
             ctk.CTkLabel(cell_inner, text=label, font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
             val_lbl = ctk.CTkLabel(cell_inner, text="—", font=FONTS["mono"], text_color=COLORS["text_primary"], anchor="w")
             val_lbl.pack(anchor="w", pady=(2, 0))
             self._info_labels[key] = val_lbl
 
-        # ---- 5. Barra de Ações & Exportação ----
+        # ---- 6. Barra de Ações / Exportação ----
         export_bar = ctk.CTkFrame(container, fg_color="transparent")
-        export_bar.pack(fill="x", pady=(0, 12))
+        export_bar.pack(fill="x", pady=(0, 10))
 
         self.btn_copy = ctk.CTkButton(
             export_bar,
-            text="Copiar Resultado",
+            text="📋 Copiar Resultado",
             font=FONTS["small_bold"],
             height=36,
             corner_radius=8,
@@ -277,7 +339,7 @@ class SpeedTestPanel(ctk.CTkFrame):
 
         self.btn_csv = ctk.CTkButton(
             export_bar,
-            text="Exportar CSV",
+            text="📊 Exportar CSV",
             font=FONTS["small_bold"],
             height=36,
             corner_radius=8,
@@ -290,7 +352,7 @@ class SpeedTestPanel(ctk.CTkFrame):
 
         self.btn_config = ctk.CTkButton(
             export_bar,
-            text="Configurar Speedtest CLI",
+            text="⚙️ Configurar Speedtest CLI",
             font=FONTS["small_bold"],
             height=36,
             corner_radius=8,
@@ -300,22 +362,17 @@ class SpeedTestPanel(ctk.CTkFrame):
         )
         self.btn_config.pack(side="right")
 
-        # Toast notification
         self.toast_label = ctk.CTkLabel(
             container, text="", font=FONTS["body"], text_color=COLORS["accent_cyan"]
         )
-        self.toast_label.pack(pady=(0, 6))
+        self.toast_label.pack(pady=(0, 4))
 
-        # ---- 6. Tabela de Histórico Local ----
-        history_card = ctk.CTkFrame(
-            container,
-            fg_color=COLORS["bg_card"],
-            corner_radius=12,
-        )
+        # ---- 7. Histórico Local de Testes ----
+        history_card = ctk.CTkFrame(container, fg_color=COLORS["bg_card"], corner_radius=12)
         history_card.pack(fill="x")
 
         hist_header = ctk.CTkFrame(history_card, fg_color="transparent")
-        hist_header.pack(fill="x", padx=20, pady=(15, 8))
+        hist_header.pack(fill="x", padx=18, pady=(12, 6))
 
         ctk.CTkLabel(
             hist_header, text="📜  Histórico Local de Testes",
@@ -323,22 +380,19 @@ class SpeedTestPanel(ctk.CTkFrame):
         ).pack(side="left")
 
         ctk.CTkButton(
-            hist_header,
-            text="Limpar Histórico",
-            font=FONTS["small"],
+            hist_header, text="Limpar Histórico", font=FONTS["small"],
             width=110, height=28, corner_radius=6,
-            fg_color=COLORS["bg_sidebar"],
-            hover_color=COLORS["status_error"],
+            fg_color=COLORS["bg_sidebar"], hover_color=COLORS["status_error"],
             command=self._clear_history,
         ).pack(side="right")
 
-        # Header da tabela
-        th = ctk.CTkFrame(history_card, fg_color=COLORS["bg_sidebar"], corner_radius=6, height=36)
+        # Tabela Header
+        th = ctk.CTkFrame(history_card, fg_color=COLORS["bg_sidebar"], corner_radius=6, height=32)
         th.pack(fill="x", padx=15, pady=(0, 4))
         th.pack_propagate(False)
 
         th_inner = ctk.CTkFrame(th, fg_color="transparent")
-        th_inner.pack(fill="x", padx=12, pady=6)
+        th_inner.pack(fill="x", padx=10, pady=4)
         th_inner.columnconfigure(0, weight=2)
         th_inner.columnconfigure(1, weight=1)
         th_inner.columnconfigure(2, weight=2)
@@ -348,21 +402,39 @@ class SpeedTestPanel(ctk.CTkFrame):
 
         cols = [("Data/Hora", 0), ("Engine", 1), ("Download", 2), ("Upload", 3), ("Ping", 4), ("Provedor / Servidor", 5)]
         for name, idx in cols:
-            ctk.CTkLabel(th_inner, text=name, font=FONTS["body_bold"], text_color=COLORS["text_secondary"], anchor="w").grid(row=0, column=idx, sticky="w", padx=3)
+            ctk.CTkLabel(th_inner, text=name, font=FONTS["body_bold"], text_color=COLORS["text_secondary"], anchor="w").grid(row=0, column=idx, sticky="w", padx=2)
 
-        # Corpo scrollável
         self.scroll_history = ctk.CTkScrollableFrame(
-            history_card,
-            fg_color="transparent",
-            height=180,
-            scrollbar_button_color=COLORS["bg_card"],
+            history_card, fg_color="transparent", height=150, scrollbar_button_color=COLORS["bg_card"]
         )
-        self.scroll_history.pack(fill="x", padx=15, pady=(0, 15))
-
+        self.scroll_history.pack(fill="x", padx=15, pady=(0, 12))
         self._history_rows: list[ctk.CTkFrame] = []
 
     # ================================================================
-    # Communication Polling Loop
+    # Atualizações de Rede Pré-Teste
+    # ================================================================
+
+    def _update_network_banner(self):
+        """Atualiza a faixa de informações de rede local pré-teste."""
+        st = network_manager.get_state()
+        ip = st.get("ipv4", "Não detectado")
+        gw = st.get("gateway", "Não detectado") or "Não disponível"
+        iface = st.get("interface", "Não detectada")
+        self.lbl_net_info.configure(
+            text=f"🌐 Conexão Atual: IPv4: {ip}  |  Gateway: {gw}  |  Interface: {iface}"
+        )
+        self.after(3000, self._update_network_banner)
+
+    def _update_engine_badge(self):
+        engine_type, path = detect_speedtest_engine(self._custom_engine_path)
+        if engine_type in ("ookla", "cli"):
+            label = "Ookla Speedtest CLI" if engine_type == "ookla" else "Speedtest CLI"
+            self.lbl_engine_badge.configure(text=f"⚙️ {label}", text_color=COLORS["accent_cyan"])
+        else:
+            self.lbl_engine_badge.configure(text="⚠️ CLI não encontrado", text_color=COLORS["status_warning"])
+
+    # ================================================================
+    # Loop de Comunicação Thread-Safe (Polling Queue)
     # ================================================================
 
     def _start_queue_polling(self):
@@ -382,31 +454,50 @@ class SpeedTestPanel(ctk.CTkFrame):
         except queue.Empty:
             pass
 
-        self._poll_after_id = self.after(100, self._process_queue)
+        self._poll_after_id = self.after(50, self._process_queue)
 
     # ================================================================
-    # Execução do Teste
+    # Controle do Teste & Cronômetro
     # ================================================================
+
+    def _on_action_click(self):
+        if self.runner.is_running():
+            self._cancel_test()
+        else:
+            self._start_test()
 
     def _start_test(self):
-        """Inicia a medição de velocidade."""
         if self.runner.is_running():
             return
 
         # UI Estado Rodando
-        self.btn_start.configure(state="disabled", text="⏳  Escaneando...")
-        self.btn_cancel.configure(state="normal", fg_color=COLORS["status_error"], hover_color="#c62828")
+        self.btn_action.configure(
+            text="🛑 Cancelar Teste",
+            fg_color=COLORS["status_error"],
+            hover_color="#c62828"
+        )
         self.btn_copy.configure(state="disabled")
         self.btn_csv.configure(state="disabled")
 
+        # Reset dos componentes gráficos
+        self.speedometer.reset()
+        self.chart.reset()
         self.progress_bar.set(0.05)
-        self.lbl_status.configure(text="Iniciando teste de velocidade...", text_color=COLORS["accent_cyan"])
+        self._set_active_step("server")
 
-        # Reset campos
-        self.lbl_download.configure(text="— Mbps")
-        self.lbl_upload.configure(text="— Mbps")
-        self.lbl_ping.configure(text="— ms")
-        self.lbl_jitter.configure(text="— ms")
+        # Reset dos labels
+        self.lbl_dl_val.configure(text="0.0 Mbps")
+        self.lbl_dl_peak.configure(text="Pico: 0.0 Mbps")
+        self.lbl_ul_val.configure(text="0.0 Mbps")
+        self.lbl_ul_peak.configure(text="Pico: 0.0 Mbps")
+        self.lbl_ping_val.configure(text="— ms")
+        self.lbl_jitter_val.configure(text="Jitter: — ms")
+        self.lbl_loss_val.configure(text="0.0 %")
+        self.lbl_status.configure(text="🟢 Conectando aos servidores...", text_color=COLORS["accent_cyan"])
+
+        # Inicia Cronômetro
+        self._test_start_time = time.time()
+        self._start_timer()
 
         self.runner.run_test(
             custom_path=self._custom_engine_path,
@@ -416,50 +507,131 @@ class SpeedTestPanel(ctk.CTkFrame):
         )
 
     def _cancel_test(self):
-        """Cancela o teste."""
         self.runner.cancel_test()
+        self._stop_timer()
         self._reset_ui_idle()
-        self.lbl_status.configure(text="⏹️ Teste cancelado.", text_color=COLORS["status_error"])
+        self.lbl_status.configure(text="⏹️ Teste de velocidade cancelado pelo usuário.", text_color=COLORS["status_error"])
+
+    def _start_timer(self):
+        if self._test_start_time is None:
+            return
+        elapsed = int(time.time() - self._test_start_time)
+        mins = elapsed // 60
+        secs = elapsed % 60
+        self.lbl_timer.configure(text=f"⏱️ {mins:02d}:{secs:02d}")
+        self._timer_after_id = self.after(500, self._start_timer)
+
+    def _stop_timer(self):
+        if self._timer_after_id:
+            self.after_cancel(self._timer_after_id)
+            self._timer_after_id = None
+
+    # ================================================================
+    # Atualizações Interativas em Tempo Real
+    # ================================================================
+
+    def _set_active_step(self, step_key: str):
+        self._current_phase = step_key
+        for k, lbl in self.step_frames.items():
+            if k == step_key:
+                lbl.configure(text_color=COLORS["accent_cyan"])
+            else:
+                lbl.configure(text_color=COLORS["text_secondary"])
 
     def _update_progress_ui(self, percent: int, message: str, partial: dict):
-        """Atualiza barra e rótulos de progresso."""
         self.progress_bar.set(percent / 100.0)
         self.lbl_status.configure(text=message, text_color=COLORS["accent_cyan"])
 
-        if "download_mbps" in partial:
-            self.lbl_download.configure(text=f"{partial['download_mbps']} Mbps")
-        if "upload_mbps" in partial:
-            self.lbl_upload.configure(text=f"{partial['upload_mbps']} Mbps")
-        if "ping_ms" in partial:
-            self.lbl_ping.configure(text=f"{partial['ping_ms']} ms")
-        if "isp" in partial:
+        phase = partial.get("phase", "init")
+
+        # Atualiza a etapa ativa
+        if phase in self.step_frames:
+            self._set_active_step(phase)
+
+        # Servidor / ISP / IP Público
+        if "isp" in partial and partial["isp"] != "—":
             self._info_labels["isp"].configure(text=partial["isp"])
-        if "public_ip" in partial:
+        if "public_ip" in partial and partial["public_ip"] != "—":
             self._info_labels["public_ip"].configure(text=partial["public_ip"])
-        if "server_name" in partial:
+        if "server_name" in partial and partial["server_name"] != "—":
             self._info_labels["server_name"].configure(text=partial["server_name"])
+        if "server_location" in partial and partial["server_location"] != "—":
+            self._info_labels["server_location"].configure(text=partial["server_location"])
+
+        # Latência e Jitter
+        if "ping_ms" in partial and partial["ping_ms"] > 0:
+            self.lbl_ping_val.configure(text=f"{partial['ping_ms']} ms")
+        if "jitter_ms" in partial and partial["jitter_ms"] > 0:
+            self.lbl_jitter_val.configure(text=f"Jitter: {partial['jitter_ms']} ms")
+
+        # Download em tempo real
+        if phase == "download" or "download_mbps" in partial:
+            dl_val = partial.get("download_mbps", 0.0)
+            dl_max = partial.get("download_max_mbps", dl_val)
+
+            if dl_val > 0:
+                self.lbl_dl_val.configure(text=f"{dl_val:.1f} Mbps")
+                self.lbl_dl_peak.configure(text=f"Pico: {dl_max:.1f} Mbps")
+
+                # Atualiza Velocímetro Canvas e Gráfico
+                self.speedometer.set_mode("download")
+                self.speedometer.set_value(dl_val)
+                self.chart.add_point(dl_val, mode="download")
+
+        # Upload em tempo real
+        if phase == "upload" or "upload_mbps" in partial:
+            ul_val = partial.get("upload_mbps", 0.0)
+            ul_max = partial.get("upload_max_mbps", ul_val)
+
+            if ul_val > 0:
+                self.lbl_ul_val.configure(text=f"{ul_val:.1f} Mbps")
+                self.lbl_ul_peak.configure(text=f"Pico: {ul_max:.1f} Mbps")
+
+                # Alterna o velocímetro automaticamente para Upload
+                self.speedometer.set_mode("upload")
+                self.speedometer.set_value(ul_val)
+                self.chart.add_point(ul_val, mode="upload")
 
     def _on_test_complete(self, result: dict):
-        """Callback acionado ao finalizar o teste."""
+        self._stop_timer()
         self._reset_ui_idle()
         self._latest_result = result
+        self._set_active_step("complete")
 
         self.progress_bar.set(1.0)
+        elapsed = result.get("elapsed_seconds", 0)
         self.lbl_status.configure(
-            text=f"✅ Teste concluído em {result.get('elapsed_seconds', 0)}s! (Engine: {result.get('engine', '')})",
+            text=f"✔ Teste concluído com sucesso em {elapsed}s! (Engine: {result.get('engine', '')})",
             text_color=COLORS["status_ok"],
         )
 
-        # Atualiza métricas
-        self.lbl_download.configure(text=f"{result.get('download_mbps', 0)} Mbps")
-        self.lbl_upload.configure(text=f"{result.get('upload_mbps', 0)} Mbps")
-        self.lbl_ping.configure(text=f"{result.get('ping_ms', 0)} ms")
+        # Trava velocímetro no valor final do Download
+        final_dl = result.get("download_mbps", 0.0)
+        self.speedometer.set_mode("download")
+        self.speedometer.set_value_instant(final_dl)
 
-        jit = result.get("jitter_ms", 0)
-        loss = result.get("packet_loss_pct", 0)
-        self.lbl_jitter.configure(text=f"{jit} ms / {loss}% loss")
+        # Atualiza métricas finais
+        self.lbl_dl_val.configure(text=f"{final_dl:.2f} Mbps")
+        self.lbl_dl_peak.configure(text=f"Pico: {result.get('download_max_mbps', final_dl):.2f} Mbps")
 
-        # Atualiza detalhes
+        final_ul = result.get("upload_mbps", 0.0)
+        self.lbl_ul_val.configure(text=f"{final_ul:.2f} Mbps")
+        self.lbl_ul_peak.configure(text=f"Pico: {result.get('upload_max_mbps', final_ul):.2f} Mbps")
+
+        self.lbl_ping_val.configure(text=f"{result.get('ping_ms', 0)} ms")
+        self.lbl_jitter_val.configure(text=f"Jitter: {result.get('jitter_ms', 0)} ms")
+        loss = result.get("packet_loss_pct", 0.0)
+        self.lbl_loss_val.configure(text=f"{loss:.1f} %")
+
+        # Qualidade
+        if loss == 0 and result.get("ping_ms", 99) < 25:
+            self.lbl_quality.configure(text="Qualidade: Excelente 🟢", text_color=COLORS["status_ok"])
+        elif loss < 2.0 and result.get("ping_ms", 99) < 60:
+            self.lbl_quality.configure(text="Qualidade: Boa 🟡", text_color=COLORS["accent_cyan"])
+        else:
+            self.lbl_quality.configure(text="Qualidade: Instável 🔴", text_color=COLORS["status_error"])
+
+        # Atualiza detalhes finais
         self._info_labels["isp"].configure(text=result.get("isp", "—"))
         self._info_labels["public_ip"].configure(text=result.get("public_ip", "—"))
         self._info_labels["server_name"].configure(text=result.get("server_name", "—"))
@@ -467,31 +639,29 @@ class SpeedTestPanel(ctk.CTkFrame):
 
         dt = f"{result.get('date_str', '')} {result.get('time_str', '')}"
         self._info_labels["date_time"].configure(text=dt)
-        self._info_labels["elapsed"].configure(text=f"{result.get('elapsed_seconds', 0)}s")
+        self._info_labels["elapsed"].configure(text=f"{elapsed}s")
 
-        # Habilita botões de exportação
         self.btn_copy.configure(state="normal")
         self.btn_csv.configure(state="normal")
-
-        # Recarrega a tabela de histórico
         self._load_history_table()
 
     def _on_test_error(self, err_msg: str):
-        """Callback acionado em caso de falha."""
+        self._stop_timer()
         self._reset_ui_idle()
         self.lbl_status.configure(text=err_msg, text_color=COLORS["status_error"])
 
     def _reset_ui_idle(self):
-        """Restaura a UI para estado ocioso."""
-        self.btn_start.configure(state="normal", text="Iniciar Teste")
-        self.btn_cancel.configure(state="disabled", fg_color=COLORS["bg_sidebar"])
+        self.btn_action.configure(
+            text="🔄  Novo Teste" if self._latest_result else "🚀  Iniciar Teste",
+            fg_color=COLORS["accent"],
+            hover_color=COLORS["accent_hover"],
+        )
 
     # ================================================================
-    # Histórico Local
+    # Tabela de Histórico e Ações
     # ================================================================
 
     def _load_history_table(self):
-        """Carrega e renderiza o histórico local."""
         for w in self._history_rows:
             w.destroy()
         self._history_rows.clear()
@@ -509,13 +679,13 @@ class SpeedTestPanel(ctk.CTkFrame):
                 self.scroll_history,
                 fg_color=COLORS["bg_card"] if idx % 2 == 0 else COLORS["bg_card_alt"],
                 corner_radius=4,
-                height=34,
+                height=32,
             )
             row.pack(fill="x", pady=1)
             row.pack_propagate(False)
 
             r_inner = ctk.CTkFrame(row, fg_color="transparent")
-            r_inner.pack(fill="x", padx=12, pady=5)
+            r_inner.pack(fill="x", padx=10, pady=4)
             r_inner.columnconfigure(0, weight=2)
             r_inner.columnconfigure(1, weight=1)
             r_inner.columnconfigure(2, weight=2)
@@ -524,26 +694,21 @@ class SpeedTestPanel(ctk.CTkFrame):
             r_inner.columnconfigure(5, weight=2)
 
             dt_str = f"{entry.get('date_str', '')} {entry.get('time_str', '')}"
-            ctk.CTkLabel(r_inner, text=dt_str, font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w").grid(row=0, column=0, sticky="w", padx=3)
-            ctk.CTkLabel(r_inner, text=entry.get("engine", "CLI")[:8], font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w").grid(row=0, column=1, sticky="w", padx=3)
-            ctk.CTkLabel(r_inner, text=f"{entry.get('download_mbps', 0)} Mbps", font=FONTS["small_bold"], text_color=COLORS["accent_cyan"], anchor="w").grid(row=0, column=2, sticky="w", padx=3)
-            ctk.CTkLabel(r_inner, text=f"{entry.get('upload_mbps', 0)} Mbps", font=FONTS["small_bold"], text_color=COLORS["status_ok"], anchor="w").grid(row=0, column=3, sticky="w", padx=3)
-            ctk.CTkLabel(r_inner, text=f"{entry.get('ping_ms', 0)} ms", font=FONTS["small"], text_color=COLORS["text_primary"], anchor="w").grid(row=0, column=4, sticky="w", padx=3)
+            ctk.CTkLabel(r_inner, text=dt_str, font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w").grid(row=0, column=0, sticky="w", padx=2)
+            ctk.CTkLabel(r_inner, text=entry.get("engine", "CLI")[:8], font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w").grid(row=0, column=1, sticky="w", padx=2)
+            ctk.CTkLabel(r_inner, text=f"{entry.get('download_mbps', 0)} Mbps", font=FONTS["small_bold"], text_color=COLORS["accent_cyan"], anchor="w").grid(row=0, column=2, sticky="w", padx=2)
+            ctk.CTkLabel(r_inner, text=f"{entry.get('upload_mbps', 0)} Mbps", font=FONTS["small_bold"], text_color=COLORS["status_ok"], anchor="w").grid(row=0, column=3, sticky="w", padx=2)
+            ctk.CTkLabel(r_inner, text=f"{entry.get('ping_ms', 0)} ms", font=FONTS["small"], text_color=COLORS["text_primary"], anchor="w").grid(row=0, column=4, sticky="w", padx=2)
 
             prov_srv = f"{entry.get('isp', '')} / {entry.get('server_name', '')}"
-            ctk.CTkLabel(r_inner, text=prov_srv[:30], font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w").grid(row=0, column=5, sticky="w", padx=3)
+            ctk.CTkLabel(r_inner, text=prov_srv[:28], font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w").grid(row=0, column=5, sticky="w", padx=2)
 
             self._history_rows.append(row)
 
     def _clear_history(self):
-        """Limpa o histórico."""
         SpeedTestHistory.clear_history()
         self._load_history_table()
         self._show_toast("🗑️ Histórico local limpo com sucesso.")
-
-    # ================================================================
-    # Ações e Exportação
-    # ================================================================
 
     def _copy_results(self):
         if self._latest_result:
@@ -568,7 +733,6 @@ class SpeedTestPanel(ctk.CTkFrame):
                 self._show_toast(f"📊 Arquivo CSV salvo em: {filepath}")
 
     def _open_config_modal(self):
-        """Abre modal para configurar o caminho do Speedtest CLI."""
         modal = ctk.CTkToplevel(self)
         modal.title("Configurações do Speedtest CLI")
         modal.geometry("520x280")
@@ -621,23 +785,21 @@ class SpeedTestPanel(ctk.CTkFrame):
             save_setting("speedtest_cli_path", self._custom_engine_path)
             self._update_engine_badge()
             modal.destroy()
-            self._show_toast("✅ Configuração do Speedtest salva permanentemente!")
+            self._show_toast("✅ Configuração salva permanentemente!")
 
         ctk.CTkButton(
             modal, text="Salvar Configurações", font=FONTS["body_bold"],
             height=42, corner_radius=8, fg_color=COLORS["accent"], command=save_config
         ).pack(fill="x", padx=30)
 
-
     def _show_toast(self, message: str):
         self.toast_label.configure(text=message)
         self.after(5000, lambda: self.toast_label.configure(text=""))
 
     def stop_monitoring(self):
-        """Cancela polling ao fechar."""
         if self._poll_after_id:
             self.after_cancel(self._poll_after_id)
             self._poll_after_id = None
-
+        self._stop_timer()
         if self.runner.is_running():
             self.runner.cancel_test()
