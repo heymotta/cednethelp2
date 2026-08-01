@@ -9,7 +9,6 @@ from typing import List
 from modules.dns_models import DNSProvider
 
 DEFAULT_PROVIDERS = [
-    {"id": "cednet", "name": "CedNet DNS", "primary_ip": "191.37.34.202", "secondary_ip": "191.37.34.201", "category": "CedNet Telecom", "enabled": True},
     {"id": "cloudflare", "name": "Cloudflare", "primary_ip": "1.1.1.1", "secondary_ip": "1.0.0.1", "category": "Público / Rápido", "enabled": True},
     {"id": "google", "name": "Google Public DNS", "primary_ip": "8.8.8.8", "secondary_ip": "8.8.4.4", "category": "Público / Global", "enabled": True},
     {"id": "opendns", "name": "OpenDNS", "primary_ip": "208.67.222.222", "secondary_ip": "208.67.220.220", "category": "Segurança / Cisco", "enabled": True},
@@ -35,7 +34,7 @@ class DNSRepository:
         self.file_path = file_path
 
     def load_providers(self) -> List[DNSProvider]:
-        """Carrega os provedores de DNS garantindo CedNet DNS e removendo Alternate e DNS.WATCH."""
+        """Carrega os provedores de DNS descartando cednet, alternate e dnswatch."""
         providers = []
         if not os.path.exists(self.file_path):
             providers = [DNSProvider.from_dict(p) for p in DEFAULT_PROVIDERS]
@@ -47,13 +46,8 @@ class DNSRepository:
                 data = json.load(f)
                 loaded = [DNSProvider.from_dict(p) for p in data if isinstance(p, dict)]
 
-            # Filtra removidos (alternate e dnswatch)
-            filtered = [p for p in loaded if p.id not in ("alternate", "dnswatch")]
-
-            # Garante que CedNet DNS esteja presente no topo
-            if not any(p.id == "cednet" for p in filtered):
-                cednet_prov = DNSProvider.from_dict(DEFAULT_PROVIDERS[0])
-                filtered.insert(0, cednet_prov)
+            # Filtra servidores descontinuados/removidos
+            filtered = [p for p in loaded if p.id not in ("cednet", "alternate", "dnswatch")]
 
             self.save_providers(filtered)
             return filtered

@@ -510,7 +510,7 @@ class WiFiPanel(ctk.CTkFrame):
 
         # 3. Canal (Centralizado)
         ctk.CTkLabel(
-            inner, text=f"Ch {net['channel']}",
+  inner, text=str(net["channel"]),
             font=("Segoe UI", 12, "bold"),
             text_color=COLORS["text_primary"],
             anchor="center",

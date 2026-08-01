@@ -1,10 +1,9 @@
 {
-    "version": "1.8.0",
+    "version": "1.8.1",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.8.0/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.8.1/CedNet_Help.zip",
     "changelog": [
-        "Refatoracao completa de UI/UX da aba Análise de Canais Wi-Fi no estilo UniFi",
-        "TP-Link Omada e Cisco Meraki"
+        "Removido CedNet DNS dos testes de DNS"
     ],
-    "sha256": "b8f97c13161aeaec04e9d706461e740c5c978cb7af509995f2932d8316c0276e"
+    "sha256": "d277bd8e56e9616a05896680021d3fb7f3495849aed8de82cb251606b8640bb1"
 }
