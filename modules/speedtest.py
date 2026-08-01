@@ -299,7 +299,7 @@ class SpeedTestRunner:
             partial_state["step_label"] = "🟢 Servidor encontrado"
             partial_state["progress_pct"] = 15
             on_progress(15, partial_state["step_label"], partial_state.copy())
-            time.sleep(0.8)
+            time.sleep(1.2)
 
             # 2. Ping
             if self._cancel_requested:
@@ -310,22 +310,22 @@ class SpeedTestRunner:
             partial_state["jitter_ms"] = jitter_val
             partial_state["progress_pct"] = 25
             on_progress(25, partial_state["step_label"], partial_state.copy())
-            time.sleep(1.0)
+            time.sleep(1.5)
 
-            # 3. Download (Simulação de rampa realista)
+            # 3. Download (Simulação realista de ~8 segundos)
             if self._cancel_requested:
                 return
             partial_state["phase"] = "download"
             partial_state["step_label"] = "🟢 Medindo Download..."
 
-            dl_steps = 16
+            dl_steps = 32
             max_dl = 0.0
             for i in range(1, dl_steps + 1):
                 if self._cancel_requested:
                     return
                 ratio = i / dl_steps
-                curve = 1.0 - math.exp(-i / 3.5)
-                fluctuation = random.uniform(-0.03, 0.04) if i > 5 else 0.0
+                curve = 1.0 - math.exp(-i / 6.0)
+                fluctuation = random.uniform(-0.025, 0.035) if i > 8 else 0.0
                 cur_dl = round(target_dl * curve * (1.0 + fluctuation), 2)
                 if cur_dl > max_dl:
                     max_dl = cur_dl
@@ -335,27 +335,27 @@ class SpeedTestRunner:
                 prog = 30 + int(ratio * 35)
                 partial_state["progress_pct"] = prog
                 on_progress(prog, partial_state["step_label"], partial_state.copy())
-                time.sleep(0.2)
+                time.sleep(0.25)
 
             partial_state["download_mbps"] = target_dl
             partial_state["download_max_mbps"] = max(target_dl, max_dl)
             on_progress(65, partial_state["step_label"], partial_state.copy())
-            time.sleep(0.4)
+            time.sleep(0.6)
 
-            # 4. Upload
+            # 4. Upload (Simulação realista de ~8 segundos)
             if self._cancel_requested:
                 return
             partial_state["phase"] = "upload"
             partial_state["step_label"] = "🟢 Medindo Upload..."
 
-            ul_steps = 16
+            ul_steps = 32
             max_ul = 0.0
             for i in range(1, ul_steps + 1):
                 if self._cancel_requested:
                     return
                 ratio = i / ul_steps
-                curve = 1.0 - math.exp(-i / 3.5)
-                fluctuation = random.uniform(-0.03, 0.04) if i > 5 else 0.0
+                curve = 1.0 - math.exp(-i / 6.0)
+                fluctuation = random.uniform(-0.025, 0.035) if i > 8 else 0.0
                 cur_ul = round(target_ul * curve * (1.0 + fluctuation), 2)
                 if cur_ul > max_ul:
                     max_ul = cur_ul
@@ -365,7 +365,7 @@ class SpeedTestRunner:
                 prog = 65 + int(ratio * 30)
                 partial_state["progress_pct"] = prog
                 on_progress(prog, partial_state["step_label"], partial_state.copy())
-                time.sleep(0.2)
+                time.sleep(0.25)
 
             partial_state["upload_mbps"] = target_ul
             partial_state["upload_max_mbps"] = max(target_ul, max_ul)

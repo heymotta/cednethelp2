@@ -78,7 +78,7 @@ class SpeedTestPanel(ctk.CTkFrame):
 
         ctk.CTkLabel(
             title_frame,
-            text="⚡  Speed Test Interativo",
+            text="⚡  Speed Test",
             font=FONTS["title"],
             text_color=COLORS["text_primary"],
             anchor="w",
@@ -518,7 +518,7 @@ class SpeedTestPanel(ctk.CTkFrame):
         ).pack(side="left", fill="x", expand=True, padx=(0, 5))
 
         ctk.CTkButton(
-            btn_row, text="Iniciar Demonstração 🎭", font=FONTS["body_bold"],
+            btn_row, text="Iniciar", font=FONTS["body_bold"],
             height=38, corner_radius=8, fg_color=COLORS["accent"],
             hover_color=COLORS["accent_hover"], command=start_demo
         ).pack(side="right", fill="x", expand=True, padx=(5, 0))
@@ -528,7 +528,7 @@ class SpeedTestPanel(ctk.CTkFrame):
             return
 
         self.btn_action.configure(
-            text="🛑 Cancelar Demonstração",
+            text="🛑 Cancelar",
             fg_color=COLORS["status_error"],
             hover_color="#c62828"
         )
@@ -546,7 +546,7 @@ class SpeedTestPanel(ctk.CTkFrame):
         self.lbl_ping_val.configure(text="— ms")
         self.lbl_jitter_val.configure(text="Jitter: — ms")
         self.lbl_loss_val.configure(text="0.0 %")
-        self.lbl_status.configure(text="🎭 Executando Modo Demonstração...", text_color=COLORS["accent_cyan"])
+        self.lbl_status.configure(text="Executando...", text_color=COLORS["accent_cyan"])
 
         self._test_start_time = time.time()
         self._start_timer()
@@ -742,10 +742,10 @@ class SpeedTestPanel(ctk.CTkFrame):
 
         if is_demo:
             self.lbl_status.configure(
-                text=f"✔ Demonstração concluída em {elapsed}s! (Modo Demonstração)",
+                text=f"✔ Teste concluído em {elapsed}s!",
                 text_color=COLORS["accent_cyan"],
             )
-            self._show_toast("🎭 Demonstração concluída! (Não gravado no histórico)")
+            self._show_toast("Teste concluído!")
         else:
             self.lbl_status.configure(
                 text=f"✔ Teste concluído com sucesso em {elapsed}s! (Engine: {result.get('engine', '')})",
