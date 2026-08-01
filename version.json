@@ -1,10 +1,10 @@
 {
-    "version": "1.4.0",
+    "version": "1.4.1",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.4.0/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.4.1/CedNet_Help.zip",
     "changelog": [
-        "Redesign completo e interativo da aba Speed Test com velocimetro circular animado",
-        "grafico de velocidade em tempo real e integracao JSONL com a CLI oficial da Ookla"
+        "Ajustes visuais no velocimetro circular",
+        "eliminacao de sobreposicoes de texto e remocao do grafico inferior"
     ],
-    "sha256": "5bff3f433628dce2c2f0e92d2197649b73fa1dc0511df4c075e4eea4bf0a1f5b"
+    "sha256": "a6bdd00efd8618a8072f476c251e94567e07d397353b120a3b99347723afe8b1"
 }

@@ -1,7 +1,7 @@
 """
-CedNet Help - Painel de Speed Test (Redesign Interativo em Tempo Real)
-Interface inspirada no Speedtest.net com velocímetro animado em Canvas,
-gráfico em tempo real, cronômetro, rastreador de etapas e integração com streaming do Ookla CLI.
+CedNet Help - Painel de Speed Test (Layout Reformulado e Elegante)
+Interface inspirada no Speedtest.net com velocímetro circular animado em Canvas,
+cronômetro, rastreador de etapas e integração com streaming do Ookla CLI.
 """
 
 import customtkinter as ctk
@@ -23,11 +23,10 @@ from modules.speedtest import (
 from modules.network_manager import network_manager
 from modules.utils import COLORS, FONTS
 from ui.components.speedometer import SpeedometerCanvas
-from ui.components.speedtest_chart import RealtimeChartCanvas
 
 
 class SpeedTestPanel(ctk.CTkFrame):
-    """Painel principal do Speed Test com UI animada em tempo real."""
+    """Painel principal do Speed Test com UI limpa e responsiva."""
 
     def __init__(self, parent):
         super().__init__(parent, fg_color="transparent")
@@ -45,7 +44,7 @@ class SpeedTestPanel(ctk.CTkFrame):
         self._timer_after_id: Optional[str] = None
 
         # Estado da fase atual
-        self._current_phase = "idle"  # idle, server, ping, download, upload, complete
+        self._current_phase = "idle"
 
         self._create_ui()
         self._load_history_table()
@@ -58,7 +57,7 @@ class SpeedTestPanel(ctk.CTkFrame):
     # ================================================================
 
     def _create_ui(self):
-        """Monta a interface interativa completa."""
+        """Monta a interface completa sem o gráfico inferior."""
         container = ctk.CTkScrollableFrame(
             self,
             fg_color="transparent",
@@ -94,7 +93,7 @@ class SpeedTestPanel(ctk.CTkFrame):
         )
         self.lbl_engine_badge.pack(side="right")
 
-        # Banner de Conexão Pré-Teste (IP Local, Gateway, Interface)
+        # Banner de Conexão Pré-Teste
         self.net_banner = ctk.CTkFrame(header_inner, fg_color=COLORS["entry_bg"], corner_radius=8)
         self.net_banner.pack(fill="x")
 
@@ -126,7 +125,7 @@ class SpeedTestPanel(ctk.CTkFrame):
         s_inner = ctk.CTkFrame(steps_card, fg_color="transparent")
         s_inner.pack(fill="x", padx=15, pady=10)
 
-        # Rótulos dos Passos/Etapas
+        # Rótulos das Etapas
         self.step_frames: dict[str, ctk.CTkLabel] = {}
         steps_grid = ctk.CTkFrame(s_inner, fg_color="transparent")
         steps_grid.pack(fill="x", pady=(0, 6))
@@ -172,43 +171,43 @@ class SpeedTestPanel(ctk.CTkFrame):
         )
         self.lbl_status.pack(anchor="w")
 
-        # ---- 3. Área Central: Velocímetro + Métricas em Tempo Real ----
+        # ---- 3. Área Central: Velocímetro + Métricas Principais ----
         center_row = ctk.CTkFrame(container, fg_color="transparent")
         center_row.pack(fill="x", pady=(0, 10))
-        center_row.columnconfigure(0, weight=0)  # Velocímetro
-        center_row.columnconfigure(1, weight=1)  # Cards de Métricas
+        center_row.columnconfigure(0, weight=0)
+        center_row.columnconfigure(1, weight=1)
 
         # Card do Velocímetro Canvas
         gauge_card = ctk.CTkFrame(center_row, fg_color=COLORS["bg_card"], corner_radius=12)
-        gauge_card.grid(row=0, column=0, padx=(0, 5), sticky="nsew")
+        gauge_card.grid(row=0, column=0, padx=(0, 6), sticky="nsew")
 
         gauge_inner = ctk.CTkFrame(gauge_card, fg_color="transparent")
-        gauge_inner.pack(padx=10, pady=10)
+        gauge_inner.pack(fill="both", expand=True, padx=12, pady=12)
 
         self.speedometer = SpeedometerCanvas(
-            gauge_inner, width=230, height=210, bg_color=COLORS["bg_card"]
+            gauge_inner, width=260, height=230, bg_color=COLORS["bg_card"]
         )
-        self.speedometer.pack()
+        self.speedometer.pack(fill="both", expand=True)
 
         # Botão Principal Ação (Iniciar / Cancelar / Novo Teste)
         self.btn_action = ctk.CTkButton(
             gauge_inner,
             text="🚀  Iniciar Teste",
             font=FONTS["body_bold"],
-            height=40,
+            height=42,
             corner_radius=8,
             fg_color=COLORS["accent"],
             hover_color=COLORS["accent_hover"],
             command=self._on_action_click,
         )
-        self.btn_action.pack(fill="x", pady=(4, 0))
+        self.btn_action.pack(fill="x", pady=(8, 0))
 
         # Cards de Métricas em Tempo Real (Direita)
         metrics_card = ctk.CTkFrame(center_row, fg_color=COLORS["bg_card"], corner_radius=12)
-        metrics_card.grid(row=0, column=1, padx=(5, 0), sticky="nsew")
+        metrics_card.grid(row=0, column=1, padx=(6, 0), sticky="nsew")
 
         m_inner = ctk.CTkFrame(metrics_card, fg_color="transparent")
-        m_inner.pack(fill="both", expand=True, padx=15, pady=12)
+        m_inner.pack(fill="both", expand=True, padx=16, pady=14)
 
         m_grid = ctk.CTkFrame(m_inner, fg_color="transparent")
         m_grid.pack(fill="both", expand=True)
@@ -216,75 +215,55 @@ class SpeedTestPanel(ctk.CTkFrame):
         m_grid.rowconfigure((0, 1), weight=1)
 
         # Download Metric Card
-        c_dl = ctk.CTkFrame(m_grid, fg_color=COLORS["entry_bg"], corner_radius=8)
-        c_dl.grid(row=0, column=0, padx=3, pady=3, sticky="nsew")
+        c_dl = ctk.CTkFrame(m_grid, fg_color=COLORS["entry_bg"], corner_radius=10)
+        c_dl.grid(row=0, column=0, padx=4, pady=4, sticky="nsew")
         cdl_i = ctk.CTkFrame(c_dl, fg_color="transparent")
-        cdl_i.pack(fill="both", expand=True, padx=10, pady=8)
+        cdl_i.pack(fill="both", expand=True, padx=14, pady=12)
         ctk.CTkLabel(cdl_i, text="🚀  DOWNLOAD", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
-        self.lbl_dl_val = ctk.CTkLabel(cdl_i, text="0.0 Mbps", font=("Consolas", 20, "bold"), text_color=COLORS["accent_cyan"], anchor="w")
-        self.lbl_dl_val.pack(anchor="w")
+        self.lbl_dl_val = ctk.CTkLabel(cdl_i, text="0.0 Mbps", font=("Consolas", 22, "bold"), text_color=COLORS["accent_cyan"], anchor="w")
+        self.lbl_dl_val.pack(anchor="w", pady=(2, 0))
         self.lbl_dl_peak = ctk.CTkLabel(cdl_i, text="Pico: 0.0 Mbps", font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w")
         self.lbl_dl_peak.pack(anchor="w")
 
         # Upload Metric Card
-        c_ul = ctk.CTkFrame(m_grid, fg_color=COLORS["entry_bg"], corner_radius=8)
-        c_ul.grid(row=0, column=1, padx=3, pady=3, sticky="nsew")
+        c_ul = ctk.CTkFrame(m_grid, fg_color=COLORS["entry_bg"], corner_radius=10)
+        c_ul.grid(row=0, column=1, padx=4, pady=4, sticky="nsew")
         cul_i = ctk.CTkFrame(c_ul, fg_color="transparent")
-        cul_i.pack(fill="both", expand=True, padx=10, pady=8)
+        cul_i.pack(fill="both", expand=True, padx=14, pady=12)
         ctk.CTkLabel(cul_i, text="📤  UPLOAD", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
-        self.lbl_ul_val = ctk.CTkLabel(cul_i, text="0.0 Mbps", font=("Consolas", 20, "bold"), text_color=COLORS["status_ok"], anchor="w")
-        self.lbl_ul_val.pack(anchor="w")
+        self.lbl_ul_val = ctk.CTkLabel(cul_i, text="0.0 Mbps", font=("Consolas", 22, "bold"), text_color=COLORS["status_ok"], anchor="w")
+        self.lbl_ul_val.pack(anchor="w", pady=(2, 0))
         self.lbl_ul_peak = ctk.CTkLabel(cul_i, text="Pico: 0.0 Mbps", font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w")
         self.lbl_ul_peak.pack(anchor="w")
 
         # Ping / Latência Card
-        c_png = ctk.CTkFrame(m_grid, fg_color=COLORS["entry_bg"], corner_radius=8)
-        c_png.grid(row=1, column=0, padx=3, pady=3, sticky="nsew")
+        c_png = ctk.CTkFrame(m_grid, fg_color=COLORS["entry_bg"], corner_radius=10)
+        c_png.grid(row=1, column=0, padx=4, pady=4, sticky="nsew")
         cpng_i = ctk.CTkFrame(c_png, fg_color="transparent")
-        cpng_i.pack(fill="both", expand=True, padx=10, pady=8)
+        cpng_i.pack(fill="both", expand=True, padx=14, pady=12)
         ctk.CTkLabel(cpng_i, text="⏱️  PING (LATÊNCIA)", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
-        self.lbl_ping_val = ctk.CTkLabel(cpng_i, text="— ms", font=("Consolas", 20, "bold"), text_color=COLORS["accent_cyan"], anchor="w")
-        self.lbl_ping_val.pack(anchor="w")
+        self.lbl_ping_val = ctk.CTkLabel(cpng_i, text="— ms", font=("Consolas", 22, "bold"), text_color=COLORS["accent_cyan"], anchor="w")
+        self.lbl_ping_val.pack(anchor="w", pady=(2, 0))
         self.lbl_jitter_val = ctk.CTkLabel(cpng_i, text="Jitter: — ms", font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w")
         self.lbl_jitter_val.pack(anchor="w")
 
         # Perda de Pacotes / Qualidade Card
-        c_loss = ctk.CTkFrame(m_grid, fg_color=COLORS["entry_bg"], corner_radius=8)
-        c_loss.grid(row=1, column=1, padx=3, pady=3, sticky="nsew")
+        c_loss = ctk.CTkFrame(m_grid, fg_color=COLORS["entry_bg"], corner_radius=10)
+        c_loss.grid(row=1, column=1, padx=4, pady=4, sticky="nsew")
         closs_i = ctk.CTkFrame(c_loss, fg_color="transparent")
-        closs_i.pack(fill="both", expand=True, padx=10, pady=8)
+        closs_i.pack(fill="both", expand=True, padx=14, pady=12)
         ctk.CTkLabel(closs_i, text="📉  PERDA DE PACOTES", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
-        self.lbl_loss_val = ctk.CTkLabel(closs_i, text="0.0 %", font=("Consolas", 20, "bold"), text_color=COLORS["text_primary"], anchor="w")
-        self.lbl_loss_val.pack(anchor="w")
+        self.lbl_loss_val = ctk.CTkLabel(closs_i, text="0.0 %", font=("Consolas", 22, "bold"), text_color=COLORS["text_primary"], anchor="w")
+        self.lbl_loss_val.pack(anchor="w", pady=(2, 0))
         self.lbl_quality = ctk.CTkLabel(closs_i, text="Qualidade: Excelente", font=FONTS["small"], text_color=COLORS["status_ok"], anchor="w")
         self.lbl_quality.pack(anchor="w")
 
-        # ---- 4. Gráfico Dinâmico em Tempo Real (Canvas) ----
-        chart_card = ctk.CTkFrame(container, fg_color=COLORS["bg_card"], corner_radius=12)
-        chart_card.pack(fill="x", pady=(0, 10))
-
-        chart_inner = ctk.CTkFrame(chart_card, fg_color="transparent")
-        chart_inner.pack(fill="x", padx=15, pady=10)
-
-        ctk.CTkLabel(
-            chart_inner,
-            text="📊  Gráfico de Banda em Tempo Real",
-            font=FONTS["heading"],
-            text_color=COLORS["text_primary"],
-            anchor="w",
-        ).pack(anchor="w", pady=(0, 6))
-
-        self.chart = RealtimeChartCanvas(
-            chart_inner, width=760, height=130, bg_color=COLORS["bg_card"]
-        )
-        self.chart.pack(fill="x")
-
-        # ---- 5. Card de Detalhes da Conexão ----
+        # ---- 4. Card de Detalhes da Conexão ----
         details_card = ctk.CTkFrame(container, fg_color=COLORS["bg_card"], corner_radius=12)
         details_card.pack(fill="x", pady=(0, 10))
 
         det_inner = ctk.CTkFrame(details_card, fg_color="transparent")
-        det_inner.pack(fill="x", padx=15, pady=12)
+        det_inner.pack(fill="x", padx=16, pady=12)
 
         ctk.CTkLabel(
             det_inner,
@@ -320,7 +299,7 @@ class SpeedTestPanel(ctk.CTkFrame):
             val_lbl.pack(anchor="w", pady=(2, 0))
             self._info_labels[key] = val_lbl
 
-        # ---- 6. Barra de Ações / Exportação ----
+        # ---- 5. Barra de Ações / Exportação ----
         export_bar = ctk.CTkFrame(container, fg_color="transparent")
         export_bar.pack(fill="x", pady=(0, 10))
 
@@ -367,7 +346,7 @@ class SpeedTestPanel(ctk.CTkFrame):
         )
         self.toast_label.pack(pady=(0, 4))
 
-        # ---- 7. Histórico Local de Testes ----
+        # ---- 6. Histórico Local de Testes ----
         history_card = ctk.CTkFrame(container, fg_color=COLORS["bg_card"], corner_radius=12)
         history_card.pack(fill="x")
 
@@ -481,7 +460,6 @@ class SpeedTestPanel(ctk.CTkFrame):
 
         # Reset dos componentes gráficos
         self.speedometer.reset()
-        self.chart.reset()
         self.progress_bar.set(0.05)
         self._set_active_step("server")
 
@@ -573,10 +551,9 @@ class SpeedTestPanel(ctk.CTkFrame):
                 self.lbl_dl_val.configure(text=f"{dl_val:.1f} Mbps")
                 self.lbl_dl_peak.configure(text=f"Pico: {dl_max:.1f} Mbps")
 
-                # Atualiza Velocímetro Canvas e Gráfico
+                # Atualiza Velocímetro Canvas
                 self.speedometer.set_mode("download")
                 self.speedometer.set_value(dl_val)
-                self.chart.add_point(dl_val, mode="download")
 
         # Upload em tempo real
         if phase == "upload" or "upload_mbps" in partial:
@@ -587,10 +564,9 @@ class SpeedTestPanel(ctk.CTkFrame):
                 self.lbl_ul_val.configure(text=f"{ul_val:.1f} Mbps")
                 self.lbl_ul_peak.configure(text=f"Pico: {ul_max:.1f} Mbps")
 
-                # Alterna o velocímetro automaticamente para Upload
+                # Alterna o velocímetro para Upload
                 self.speedometer.set_mode("upload")
                 self.speedometer.set_value(ul_val)
-                self.chart.add_point(ul_val, mode="upload")
 
     def _on_test_complete(self, result: dict):
         self._stop_timer()

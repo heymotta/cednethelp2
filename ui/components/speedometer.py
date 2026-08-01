@@ -1,7 +1,7 @@
 """
-CedNet Help - Componente de Velocímetro Animado (Canvas)
+CedNet Help - Componente de Velocímetro Animado (Canvas Responsivo)
 Velocímetro circular moderno em Tkinter Canvas com ponteiro animado por interpolação (Lerp),
-leitura numérica em tempo real e alternância de tema entre Download (Cyan/Azul) e Upload (Verde).
+leitura numérica em tempo real e layout responsivo sem sobreposição de texto.
 """
 
 import tkinter as tk
@@ -12,10 +12,17 @@ from modules.utils import COLORS, FONTS
 
 class SpeedometerCanvas(tk.Canvas):
     """
-    Widget de Velocímetro Circular com Animação Suave.
+    Widget de Velocímetro Circular Responsivo com Animação Suave.
     """
 
-    def __init__(self, parent, width: int = 240, height: int = 220, bg_color: str = COLORS["bg_card"], **kwargs):
+    def __init__(
+        self,
+        parent,
+        width: int = 260,
+        height: int = 240,
+        bg_color: str = COLORS["bg_card"],
+        **kwargs,
+    ):
         super().__init__(
             parent,
             width=width,
@@ -30,17 +37,8 @@ class SpeedometerCanvas(tk.Canvas):
         self.h = height
         self.bg_color = bg_color
 
-        # Centro do arco e raio
-        self.cx = width / 2
-        self.cy = height / 2 + 10
-        self.radius = min(width, height) / 2 - 25
-
-        # Ângulos do arco (135° a 45°, percorrendo 270° no sentido horário)
-        self.start_angle = 135  # Em graus (lado esquerdo inferior)
-        self.total_sweep = 270  # Varredura até o lado direito inferior
-
         # Intervalo de velocidade
-        self.max_speed = 1000.0  # Mbps máximo na escala log/não-linear
+        self.max_speed = 1000.0
         self.current_value = 0.0
         self.target_value = 0.0
 
@@ -52,9 +50,19 @@ class SpeedometerCanvas(tk.Canvas):
         self._anim_running = False
         self._after_id: Optional[str] = None
 
-        self._draw_static_dial()
-        self._draw_needle_and_text(0.0)
+        # Evento de redimensionamento responsivo
+        self.bind("<Configure>", self._on_configure)
+
+        self.redraw()
         self._start_animation_loop()
+
+    def _on_configure(self, event):
+        """Atualiza dimensões dinamicamente se a janela for redimensionada."""
+        if event.width > 10 and event.height > 10:
+            if event.width != self.w or event.height != self.h:
+                self.w = event.width
+                self.h = event.height
+                self.redraw()
 
     def set_mode(self, mode: str):
         """Define o modo visual: 'idle', 'download', 'upload'."""
@@ -88,156 +96,163 @@ class SpeedometerCanvas(tk.Canvas):
         self.redraw()
 
     # ================================================================
-    # Matematica de Escala e Graus
+    # Matemática de Escala e Graus
     # ================================================================
 
     def _val_to_angle(self, val: float) -> float:
         """
-        Converte uma velocidade em Mbps (0 a max_speed) no ângulo correspondente.
-        Usa escala não-linear (raiz quadrada) para destacar velocidades baixas e altas.
+        Converte velocidade em Mbps no ângulo do ponteiro.
+        Arco inicia em 215° (inferior esquerdo) e varre 250° no sentido horário até -35°.
         """
         if val <= 0:
             pct = 0.0
         else:
-            # Escala suave com curva de resposta mais natural
             pct = math.pow(val / self.max_speed, 0.65)
             pct = min(1.0, max(0.0, pct))
 
-        # Ângulo em graus do Tkinter (0 = 3 horas, 90 = 12 horas, 180 = 9 horas, 270 = 6 horas)
-        # Nosso arco começa em 225° (sudoeste) e vai no sentido horário até -45° (sudeste)
-        angle_deg = 225 - (pct * 270)
+        angle_deg = 215 - (pct * 250)
         return angle_deg
 
     # ================================================================
-    # Desenho no Canvas
+    # Desenho Responsivo no Canvas
     # ================================================================
 
-    def _draw_static_dial(self):
-        """Desenha o mostrador de fundo, arcos e graduações."""
+    def redraw(self):
+        """Redesenha todo o mostrador garantindo zero sobreposição."""
         self.delete("all")
 
-        # 1. Arco de Fundo (Pista escura)
+        w = self.w
+        h = self.h
+
+        # Centro do arco posicionado no terço superior do card (38% da altura)
+        cx = w / 2.0
+        cy = h * 0.38
+
+        # Raio proporcional
+        radius = min(w, h) * 0.34
+        if radius < 30:
+            return
+
+        # 1. Arco de Fundo (Pista Escura)
         box = (
-            self.cx - self.radius,
-            self.cy - self.radius,
-            self.cx + self.radius,
-            self.cy + self.radius,
+            cx - radius,
+            cy - radius,
+            cx + radius,
+            cy + radius,
         )
+        arc_width = max(8, int(radius * 0.14))
         self.create_arc(
             box,
-            start=-45,
-            extent=270,
+            start=-35,
+            extent=250,
             style=tk.ARC,
             outline=COLORS["border"],
-            width=14,
+            width=arc_width,
         )
 
-        # 2. Arco Ativo com a Cor Primária (baseado na velocidade atual)
+        # 2. Arco Ativo com a Cor Primária
         pct = min(1.0, max(0.0, math.pow(self.current_value / self.max_speed, 0.65)))
         if pct > 0.001:
-            extent_deg = -pct * 270
+            extent_deg = -pct * 250
             self.create_arc(
                 box,
-                start=225,
+                start=215,
                 extent=extent_deg,
                 style=tk.ARC,
                 outline=self.primary_color,
-                width=14,
+                width=arc_width,
             )
 
         # 3. Marcadores de Graduação (Ticks)
-        tick_speeds = [0, 10, 50, 100, 250, 500, 1000]
+        tick_speeds = [0, 50, 100, 250, 500, 1000]
         for spd in tick_speeds:
             if spd > self.max_speed:
                 continue
             ang_deg = self._val_to_angle(spd)
             ang_rad = math.radians(ang_deg)
 
-            # Ponto interno e externo da marcação
-            r_in = self.radius - 18
-            r_out = self.radius - 8
+            r_in = radius - arc_width * 1.1
+            r_out = radius - arc_width * 0.4
 
-            x1 = self.cx + r_in * math.cos(ang_rad)
-            y1 = self.cy - r_in * math.sin(ang_rad)
-            x2 = self.cx + r_out * math.cos(ang_rad)
-            y2 = self.cy - r_out * math.sin(ang_rad)
+            x1 = cx + r_in * math.cos(ang_rad)
+            y1 = cy - r_in * math.sin(ang_rad)
+            x2 = cx + r_out * math.cos(ang_rad)
+            y2 = cy - r_out * math.sin(ang_rad)
 
             self.create_line(x1, y1, x2, y2, fill=COLORS["text_secondary"], width=2)
 
-            # Rótulos das marcas principais
-            r_txt = self.radius - 30
-            tx = self.cx + r_txt * math.cos(ang_rad)
-            ty = self.cy - r_txt * math.sin(ang_rad)
+            # Rótulos dos números do mostrador (fora do arco)
+            r_txt = radius + arc_width * 0.9
+            tx = cx + r_txt * math.cos(ang_rad)
+            ty = cy - r_txt * math.sin(ang_rad)
             lbl = str(spd) if spd < 1000 else "1G"
+            font_size = max(7, int(radius * 0.11))
             self.create_text(
-                tx, ty, text=lbl, fill=COLORS["text_secondary"], font=("Segoe UI", 9)
+                tx, ty, text=lbl, fill=COLORS["text_secondary"], font=("Segoe UI", font_size)
             )
 
-    def _draw_needle_and_text(self, val: float):
-        """Desenha o ponteiro central e o texto numérico em tempo real."""
-        # 1. Ângulo do Ponteiro
-        ang_deg = self._val_to_angle(val)
+        # 4. Ponteiro Central
+        ang_deg = self._val_to_angle(self.current_value)
         ang_rad = math.radians(ang_deg)
 
-        # Comprimento do ponteiro
-        needle_len = self.radius - 22
-        nx = self.cx + needle_len * math.cos(ang_rad)
-        ny = self.cy - needle_len * math.sin(ang_rad)
+        needle_len = radius - arc_width * 0.2
+        nx = cx + needle_len * math.cos(ang_rad)
+        ny = cy - needle_len * math.sin(ang_rad)
 
-        # Linha do Ponteiro principal
+        needle_w = max(3, int(radius * 0.05))
         self.create_line(
-            self.cx, self.cy, nx, ny,
+            cx, cy, nx, ny,
             fill=self.primary_color,
-            width=4,
+            width=needle_w,
             capstyle=tk.ROUND,
         )
 
-        # Centro do mostrador (Círculo de pivô)
-        r_hub = 8
+        # Pivô Central
+        r_hub = max(4, int(radius * 0.08))
         self.create_oval(
-            self.cx - r_hub, self.cy - r_hub,
-            self.cx + r_hub, self.cy + r_hub,
-            fill=COLORS["bg_main"], outline=self.primary_color, width=3
+            cx - r_hub, cy - r_hub,
+            cx + r_hub, cy + r_hub,
+            fill=COLORS["bg_main"], outline=self.primary_color, width=2
         )
 
-        # 2. Exibição Numérica Central
-        # Formata o número (ex: 277.5 Mbps ou 0.0)
-        if val >= 100:
-            val_str = f"{val:.1f}"
-        elif val >= 10:
-            val_str = f"{val:.1f}"
+        # 5. HIERAQUIA DE TEXTO (Posicionada estritamente ABAIXO do pivô sem sobreposição)
+        # Linha 1: Valor Numérico Gigante (ex: 287.8)
+        y_val = cy + radius * 0.45
+        if self.current_value >= 100:
+            val_str = f"{self.current_value:.1f}"
+        elif self.current_value >= 10:
+            val_str = f"{self.current_value:.1f}"
         else:
-            val_str = f"{val:.2f}" if val > 0 else "0.0"
+            val_str = f"{self.current_value:.2f}" if self.current_value > 0 else "0.0"
 
-        # Valor gigante
+        val_font_size = max(16, int(radius * 0.30))
         self.create_text(
-            self.cx, self.cy + 30,
+            cx, y_val,
             text=val_str,
             fill=COLORS["text_primary"],
-            font=("Segoe UI", 26, "bold"),
+            font=("Segoe UI", val_font_size, "bold"),
         )
 
-        # Unidade "Mbps"
+        # Linha 2: Unidade "Mbps"
+        y_unit = y_val + radius * 0.32
+        unit_font_size = max(9, int(radius * 0.13))
         self.create_text(
-            self.cx, self.cy + 52,
+            cx, y_unit,
             text="Mbps",
             fill=COLORS["text_secondary"],
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", unit_font_size, "bold"),
         )
 
-        # Rótulo de Modo (DOWNLOAD / UPLOAD)
+        # Linha 3: Modo ("DOWNLOAD" / "UPLOAD" / "SPEED TEST")
+        y_mode = y_unit + radius * 0.26
         mode_text = self.mode.upper() if self.mode != "idle" else "SPEED TEST"
+        mode_font_size = max(9, int(radius * 0.13))
         self.create_text(
-            self.cx, self.cy + 68,
+            cx, y_mode,
             text=mode_text,
             fill=self.primary_color,
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", mode_font_size, "bold"),
         )
-
-    def redraw(self):
-        """Redesenha todo o mostrador."""
-        self._draw_static_dial()
-        self._draw_needle_and_text(self.current_value)
 
     # ================================================================
     # Loop de Animação (Suavização Lerp)
@@ -251,10 +266,8 @@ class SpeedometerCanvas(tk.Canvas):
         if not self._anim_running:
             return
 
-        # Interpolação Linear (Lerp) para aproximação suave
         diff = self.target_value - self.current_value
         if abs(diff) > 0.01:
-            # 20% do caminho a cada frame (suave e ágil)
             self.current_value += diff * 0.22
             self.redraw()
         elif self.current_value != self.target_value:
