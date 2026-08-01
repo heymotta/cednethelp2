@@ -1,10 +1,10 @@
 {
-    "version": "1.6.0",
+    "version": "1.6.1",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.6.0/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.6.1/CedNet_Help.zip",
     "changelog": [
-        "Correcao definitiva da aba Canais Wi-Fi com verificacao automatica de adaptador",
-        "mensagens claras e fim de travamento"
+        "Correcao final do fluxo de inicializacao da aba Canais Wi-Fi",
+        "remocao da Ocupacao do Espectro e varredura sob demanda"
     ],
-    "sha256": "9fb05c39eb37185e4d5ee6024e701860fea4e2d4cbd8bad17d4c540b429cd97c"
+    "sha256": "33611f926910bd9802404c400fcad7516dfaa3daebd037b10656181aed2dd73e"
 }

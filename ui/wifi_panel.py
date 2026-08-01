@@ -1,15 +1,13 @@
 """
 CedNet Help - Painel de Análise de Canais Wi-Fi
-Ferramenta profissional para análise de espectro Wi-Fi (2.4 GHz e 5 GHz),
-visualização gráfica de canais congestionados e recomendação inteligente do melhor canal.
+Ferramenta profissional para análise de espectro Wi-Fi (2.4 GHz e 5 GHz)
+com recomendação inteligente do melhor canal e listagem detalhada de redes.
 
 Funcionalidades:
-  - Varredura de redes próximas (SSID, BSSID, Banda, Canal, Sinal, Segurança)
+  - Varredura sob demanda (iniciada ativamente pelo técnico)
   - Card de Recomendação Inteligente com justificativas técnicas (2.4 GHz e 5 GHz)
-  - Visualização gráfica da ocupação dos canais (Barras de Densidade)
-  - Tabela filtrável em tempo real
-  - Tratamento estrito de erros (sem adaptador, sem suporte, sem redes encontradas)
-  - Resposta resiliente com Watchdog Timer e suporte a cancelamento de scan
+  - Tabela filtrável em tempo real (SSID, BSSID, Banda, Canal, Sinal RSSI, Segurança)
+  - Tratamento estrito de erros e cancelamento imediato de varredura
 """
 
 import customtkinter as ctk
@@ -20,7 +18,7 @@ from modules.utils import COLORS, FONTS
 
 
 class WiFiPanel(ctk.CTkFrame):
-    """Painel de Análise de Canais Wi-Fi."""
+    """Painel de Análise de Canais Wi-Fi (Sem varredura automática ao iniciar)."""
 
     def __init__(self, parent):
         super().__init__(parent, fg_color="transparent")
@@ -33,15 +31,14 @@ class WiFiPanel(ctk.CTkFrame):
         self._watchdog_after_id: Optional[str] = None
 
         self._create_ui()
-        # Executa a varredura inicial ao abrir
-        self._run_scan()
+        # NOTA: Não executa varredura automática ao abrir. O sistema permanece ocioso.
 
     # ================================================================
     # Construção da UI
     # ================================================================
 
     def _create_ui(self):
-        """Monta toda a interface do painel Wi-Fi."""
+        """Monta a interface sem o card de densidade de espectro."""
         self.container = ctk.CTkScrollableFrame(
             self,
             fg_color="transparent",
@@ -63,18 +60,18 @@ class WiFiPanel(ctk.CTkFrame):
 
         self.btn_refresh = ctk.CTkButton(
             header,
-            text="Escanear Novamente",
+            text="🚀  Escanear Redes Wi-Fi",
             font=FONTS["body_bold"],
-            width=180,
+            width=200,
             height=38,
             corner_radius=8,
             fg_color=COLORS["accent"],
             hover_color=COLORS["accent_hover"],
-            command=self._run_scan,
+            command=self._on_btn_click,
         )
         self.btn_refresh.pack(side="right")
 
-        # ---- Card de Erro / Aviso (Exibido sob falha ou 0 redes) ----
+        # ---- Card de Erro / Aviso (Exibido apenas sob erro ou 0 redes) ----
         self.error_card = ctk.CTkFrame(
             self.container,
             fg_color="#3d1a1a",
@@ -121,7 +118,6 @@ class WiFiPanel(ctk.CTkFrame):
             anchor="w",
         ).pack(anchor="w", pady=(0, 10))
 
-        # Grid com 2 colunas: 2.4 GHz (esquerda) e 5 GHz (direita)
         rec_grid = ctk.CTkFrame(rec_inner, fg_color="transparent")
         rec_grid.pack(fill="x")
         rec_grid.columnconfigure((0, 1), weight=1)
@@ -144,7 +140,7 @@ class WiFiPanel(ctk.CTkFrame):
 
         self.lbl_reasons_24 = ctk.CTkLabel(
             c24_inner,
-            text="Aguardando varredura...",
+            text="Clique em 'Escanear Redes Wi-Fi' para iniciar a análise.",
             font=FONTS["small"],
             text_color=COLORS["text_secondary"],
             anchor="w",
@@ -170,7 +166,7 @@ class WiFiPanel(ctk.CTkFrame):
 
         self.lbl_reasons_5g = ctk.CTkLabel(
             c5g_inner,
-            text="Aguardando varredura...",
+            text="Clique em 'Escanear Redes Wi-Fi' para iniciar a análise.",
             font=FONTS["small"],
             text_color=COLORS["text_secondary"],
             anchor="w",
@@ -178,59 +174,7 @@ class WiFiPanel(ctk.CTkFrame):
         )
         self.lbl_reasons_5g.pack(anchor="w")
 
-        # ---- 3. Gráfico de Densidade de Espectro ----
-        graph_card = ctk.CTkFrame(
-            self.container,
-            fg_color=COLORS["bg_card"],
-            corner_radius=12,
-        )
-        graph_card.pack(fill="x", pady=(0, 12))
-
-        graph_inner = ctk.CTkFrame(graph_card, fg_color="transparent")
-        graph_inner.pack(fill="x", padx=20, pady=15)
-
-        ctk.CTkLabel(
-            graph_inner,
-            text="📊  Ocupação do Espectro (2.4 GHz)",
-            font=FONTS["heading"],
-            text_color=COLORS["text_primary"],
-            anchor="w",
-        ).pack(anchor="w", pady=(0, 10))
-
-        # Container de barras dos canais 1 a 13
-        self.bars_frame_24 = ctk.CTkFrame(graph_inner, fg_color="transparent")
-        self.bars_frame_24.pack(fill="x")
-        self.bars_frame_24.columnconfigure(list(range(13)), weight=1)
-
-        self._channel_bars_24: dict[int, dict] = {}
-        for ch in range(1, 14):
-            bar_box = ctk.CTkFrame(self.bars_frame_24, fg_color="transparent")
-            bar_box.grid(row=0, column=ch-1, padx=2, sticky="ew")
-
-            count_lbl = ctk.CTkLabel(
-                bar_box, text="0", font=FONTS["small_bold"],
-                text_color=COLORS["text_secondary"],
-            )
-            count_lbl.pack()
-
-            p_bar = ctk.CTkProgressBar(
-                bar_box, height=50, orientation="vertical",
-                corner_radius=4, fg_color=COLORS["entry_bg"],
-                progress_color=COLORS["accent"],
-            )
-            p_bar.pack(pady=3)
-            p_bar.set(0.0)
-
-            ch_color = COLORS["accent_cyan"] if ch in (1, 3, 6) else COLORS["text_secondary"]
-            ch_lbl = ctk.CTkLabel(
-                bar_box, text=f"Ch {ch}", font=FONTS["small_bold"],
-                text_color=ch_color,
-            )
-            ch_lbl.pack()
-
-            self._channel_bars_24[ch] = {"bar": p_bar, "count": count_lbl}
-
-        # ---- 4. Barra de Pesquisa ----
+        # ---- 3. Barra de Pesquisa ----
         search_bar = ctk.CTkFrame(self.container, fg_color="transparent")
         search_bar.pack(fill="x", pady=(0, 8))
 
@@ -247,7 +191,7 @@ class WiFiPanel(ctk.CTkFrame):
         self.search_entry.pack(fill="x")
         self.search_entry.bind("<KeyRelease>", self._on_search)
 
-        # ---- 5. Tabela de Redes Wi-Fi ----
+        # ---- 4. Tabela de Redes Wi-Fi ----
         table_header = ctk.CTkFrame(
             self.container,
             fg_color=COLORS["bg_sidebar"],
@@ -279,7 +223,7 @@ class WiFiPanel(ctk.CTkFrame):
                 anchor="w",
             ).grid(row=0, column=col_idx, sticky="w", padx=4)
 
-        # Corpo Scrollável
+        # Corpo Scrollável da Tabela
         self.scroll_table = ctk.CTkScrollableFrame(
             self.container,
             fg_color="transparent",
@@ -288,19 +232,23 @@ class WiFiPanel(ctk.CTkFrame):
         self.scroll_table.pack(fill="both", expand=True)
 
         self._row_widgets: list[ctk.CTkFrame] = []
+        self._render_networks_table([], initial_idle=True)
 
     # ================================================================
-    # Execução da Varredura Resiliente (Thread + Watchdog + Cancel)
+    # Gerenciamento de Estado & Execução sob Demanda
     # ================================================================
 
-    def _run_scan(self):
-        """Inicia ou cancela a varredura das redes Wi-Fi."""
+    def _on_btn_click(self):
+        """Disparado ao clicar no botão principal."""
         if self._is_scanning:
-            # Clicar durante o escaneamento solicita cancelamento imediato
+            # Clicar durante o scan solicita cancelamento
             self._cancel_requested = True
             self.btn_refresh.configure(text="Cancelando...", state="disabled")
-            return
+        else:
+            self._start_scan()
 
+    def _start_scan(self):
+        """Inicia o escaneamento real."""
         self._is_scanning = True
         self._cancel_requested = False
 
@@ -312,12 +260,10 @@ class WiFiPanel(ctk.CTkFrame):
         )
         self.error_card.pack_forget()
 
-        # Reseta barras de espectro
-        for item in self._channel_bars_24.values():
-            item["bar"].set(0.0)
-            item["count"].configure(text="0")
+        self.lbl_reasons_24.configure(text="🔍 Escaneando redes Wi-Fi próximas...")
+        self.lbl_reasons_5g.configure(text="🔍 Escaneando redes Wi-Fi próximas...")
 
-        # Watchdog Timer de 10 segundos para garantir que NUNCA fique preso
+        # Watchdog Timer de 10 segundos para segurança
         if self._watchdog_after_id:
             self.after_cancel(self._watchdog_after_id)
         self._watchdog_after_id = self.after(10000, self._check_scan_watchdog)
@@ -326,12 +272,12 @@ class WiFiPanel(ctk.CTkFrame):
         thread.start()
 
     def _check_scan_watchdog(self):
-        """Watchdog que força o reset de estado caso a thread trave."""
+        """Watchdog que destrava a UI caso a thread falhe."""
         if self._is_scanning:
             self._on_scan_complete(False, "Tempo limite do escaneamento esgotado.", [], {})
 
     def _scan_thread_worker(self):
-        """Worker que executa a busca e processa a análise."""
+        """Worker de segundo plano."""
         success = False
         message = "Não foi possível concluir a varredura Wi-Fi."
         networks: list[dict] = []
@@ -347,15 +293,13 @@ class WiFiPanel(ctk.CTkFrame):
         except Exception as exc:
             message = f"Erro ao processar varredura Wi-Fi: {exc}"
         finally:
-            # O bloco FINALLY garante 100% de saída do estado "Escaneando..."
             try:
                 self.after(0, lambda: self._on_scan_complete(success, message, networks, analysis))
             except RuntimeError:
                 self._is_scanning = False
 
     def _on_scan_complete(self, success: bool, message: str, networks: list[dict], analysis: dict):
-        """Callback acionado ao concluir a varredura (sucesso ou falha)."""
-        # Cancela o watchdog timer
+        """Callback acionado ao concluir a varredura."""
         if self._watchdog_after_id:
             self.after_cancel(self._watchdog_after_id)
             self._watchdog_after_id = None
@@ -365,7 +309,7 @@ class WiFiPanel(ctk.CTkFrame):
 
         self.btn_refresh.configure(
             state="normal",
-            text="Escanear Novamente",
+            text="🚀  Escanear Redes Wi-Fi",
             fg_color=COLORS["accent"],
             hover_color=COLORS["accent_hover"],
         )
@@ -373,20 +317,16 @@ class WiFiPanel(ctk.CTkFrame):
         self._networks = networks
         self._analysis = analysis
 
-        # Se houve falha de adaptador/serviço ou se 0 redes foram encontradas
         if not success or not networks:
             error_msg = message if not success else "Nenhuma rede Wi-Fi foi encontrada."
             self.lbl_error_msg.configure(text=error_msg)
             self.error_card.pack(fill="x", pady=(0, 12))
             self._display_recommendations(None)
-            self._render_spectrum_graph({})
             self._render_networks_table([])
             return
 
-        # Sucesso com redes encontradas
         self.error_card.pack_forget()
         self._display_recommendations(analysis)
-        self._render_spectrum_graph(analysis.get("channels_24", {}))
         self._render_networks_table(networks)
 
     # ================================================================
@@ -423,48 +363,26 @@ class WiFiPanel(ctk.CTkFrame):
         self.lbl_reasons_5g.configure(text=reasons5g)
 
     # ================================================================
-    # Renderização do Gráfico de Espectro
-    # ================================================================
-
-    def _render_spectrum_graph(self, channels_24: dict[int, list[dict]]):
-        """Atualiza a densidade das barras verticais de cada canal 2.4 GHz."""
-        if not channels_24:
-            for item in self._channel_bars_24.values():
-                item["bar"].set(0.0)
-                item["count"].configure(text="0")
-                item["bar"].configure(progress_color=COLORS["accent"])
-            return
-
-        max_nets = max([len(nets) for nets in channels_24.values()] + [1])
-
-        for ch in range(1, 14):
-            if ch in self._channel_bars_24:
-                nets = channels_24.get(ch, [])
-                count = len(nets)
-
-                bar = self._channel_bars_24[ch]["bar"]
-                lbl = self._channel_bars_24[ch]["count"]
-
-                lbl.configure(text=str(count))
-                fraction = min(1.0, count / max_nets) if count > 0 else 0.0
-                bar.set(fraction)
-
-                if count == 0:
-                    bar.configure(progress_color=COLORS["accent"])
-                elif count <= 2:
-                    bar.configure(progress_color=COLORS["status_warning"])
-                else:
-                    bar.configure(progress_color=COLORS["status_error"])
-
-    # ================================================================
     # Renderização da Tabela de Redes
     # ================================================================
 
-    def _render_networks_table(self, networks: list[dict]):
+    def _render_networks_table(self, networks: list[dict], initial_idle: bool = False):
         """Limpa e redesenha a tabela com a lista de redes."""
         for w in self._row_widgets:
             w.destroy()
         self._row_widgets.clear()
+
+        if initial_idle:
+            no_row = ctk.CTkFrame(self.scroll_table, fg_color="transparent")
+            no_row.pack(fill="x", pady=20)
+            ctk.CTkLabel(
+                no_row,
+                text="Clique em 'Escanear Redes Wi-Fi' para iniciar a busca das redes disponíveis ao alcance.",
+                font=FONTS["body"],
+                text_color=COLORS["text_secondary"],
+            ).pack()
+            self._row_widgets.append(no_row)
+            return
 
         if not networks:
             no_row = ctk.CTkFrame(self.scroll_table, fg_color="transparent")
