@@ -1,9 +1,12 @@
 {
-    "version": "1.6.2",
+    "version": "1.7.0",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.6.2/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.7.0/CedNet_Help.zip",
     "changelog": [
-        "Redesign completo do layout da aba Canais Wi-Fi: aproveitamento de 100% do espaco vertical e alinhamento simetrico das colunas"
+        "Simplificacao da tabela Wi-Fi (5 colunas) e inclusao do CedNet DNS (191",
+        "37",
+        "34",
+        "202) no Teste de DNS"
     ],
-    "sha256": "638774eb4c8b29c8f038fcd0d81b50ce51478b2a142b96f1fe309d6395b63ff5"
+    "sha256": "a33d6985496070749066595e60ff7f71b666625fa73b289e08d1fd566f8e80a5"
 }

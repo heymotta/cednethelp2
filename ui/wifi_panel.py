@@ -4,8 +4,9 @@ Ferramenta profissional para análise de redes sem fio (2.4 GHz e 5 GHz),
 com recomendação inteligente do melhor canal e layout responsivo de alta densidade.
 
 Funcionalidades:
+  - Tabela simplificada de 5 colunas essenciais (SSID, BSSID, Banda, Canal, Sinal RSSI)
   - Tabela responsiva de altura adaptativa (preenche 100% do espaço vertical disponível)
-  - Alinhamento rigoroso e proporcional de colunas (SSID, BSSID, Banda, Canal, Frequência, Sinal, Segurança)
+  - Alinhamento rigoroso e proporcional de colunas
   - Card de Recomendação Inteligente para 2.4 GHz (canais 1 a 6) e 5 GHz (canais 36, 40 e 44)
   - Pesquisa em tempo real com filtro por qualquer campo
   - Varredura sob demanda com botão de cancelamento e watchdog de resiliência
@@ -18,21 +19,19 @@ from modules.wifi_scanner import WiFiScanner
 from modules.utils import COLORS, FONTS
 
 
-# Especificações de alinhamento e peso de cada coluna para alinhamento 100% simétrico
+# Especificações de alinhamento e peso das 5 colunas essenciais mantidas
 COL_SPECS = [
     # (Título, Peso, Anchor, Sticky)
-    ("SSID (Nome da Rede)", 32, "w", "w"),
-    ("BSSID (MAC AP)", 18, "center", "ew"),
-    ("Banda", 10, "center", "ew"),
+    ("SSID (Nome da Rede)", 40, "w", "w"),
+    ("BSSID (MAC AP)", 24, "center", "ew"),
+    ("Banda", 12, "center", "ew"),
     ("Canal", 10, "center", "ew"),
-    ("Frequência", 12, "center", "ew"),
-    ("Sinal (RSSI)", 16, "center", "ew"),
-    ("Segurança", 16, "center", "ew"),
+    ("Sinal (RSSI)", 18, "center", "ew"),
 ]
 
 
 class WiFiPanel(ctk.CTkFrame):
-    """Painel de Análise de Canais Wi-Fi com Layout Responsivo de Alta Densidade."""
+    """Painel de Análise de Canais Wi-Fi com Layout Simplificado de 5 Colunas."""
 
     def __init__(self, parent):
         super().__init__(parent, fg_color="transparent")
@@ -191,7 +190,7 @@ class WiFiPanel(ctk.CTkFrame):
 
         self.search_entry = ctk.CTkEntry(
             search_bar,
-            placeholder_text="🔍  Pesquisar por SSID, BSSID, Canal, Banda ou Segurança...",
+            placeholder_text="🔍  Pesquisar por SSID, BSSID, Canal ou Banda...",
             font=FONTS["body"],
             height=36,
             corner_radius=8,
@@ -210,7 +209,7 @@ class WiFiPanel(ctk.CTkFrame):
         )
         table_container.pack(fill="both", expand=True, padx=5, pady=(0, 5))
 
-        # Cabeçalho Fixo da Tabela com Distribuição Proporcional Perfeita
+        # Cabeçalho Fixo da Tabela com 5 Colunas
         table_header = ctk.CTkFrame(
             table_container,
             fg_color=COLORS["bg_sidebar"],
@@ -371,11 +370,11 @@ class WiFiPanel(ctk.CTkFrame):
         self.lbl_reasons_5g.configure(text=reasons5g)
 
     # ================================================================
-    # Renderização da Tabela Responsiva de Redes
+    # Renderização da Tabela Responsiva de Redes (5 Colunas)
     # ================================================================
 
     def _render_networks_table(self, networks: list[dict], initial_idle: bool = False):
-        """Limpa e desenha a lista de redes com alinhamento rigoroso."""
+        """Limpa e desenha a lista de redes com 5 colunas essenciais."""
         for w in self._row_widgets:
             w.destroy()
         self._row_widgets.clear()
@@ -411,14 +410,13 @@ class WiFiPanel(ctk.CTkFrame):
             if not query or self._match_network_query(n, query)
         ]
 
-        # Ordena por intensidade de sinal (mais forte primeiro)
         filtered.sort(key=lambda x: x["signal_pct"], reverse=True)
 
         for index, net in enumerate(filtered):
             self._create_network_row(net, index)
 
     def _create_network_row(self, net: dict, index: int):
-        """Cria uma linha simétrica na tabela com pesos e alinhamento sincronizados."""
+        """Cria uma linha simétrica na tabela para as 5 colunas mantidas."""
         bg = COLORS["bg_card"] if index % 2 == 0 else COLORS["bg_card_alt"]
 
         row = ctk.CTkFrame(
@@ -469,15 +467,7 @@ class WiFiPanel(ctk.CTkFrame):
             anchor="center",
         ).grid(row=0, column=3, sticky="ew", padx=4)
 
-        # 4. Frequência (Centralizada)
-        ctk.CTkLabel(
-            inner, text=f"{net['frequency_mhz']} MHz",
-            font=FONTS["small"],
-            text_color=COLORS["text_secondary"],
-            anchor="center",
-        ).grid(row=0, column=4, sticky="ew", padx=4)
-
-        # 5. Sinal RSSI (Centralizado e Colorido)
+        # 4. Sinal RSSI (Centralizado e Colorido)
         rssi = net["rssi_dbm"]
         pct = net["signal_pct"]
         signal_color = COLORS["status_ok"] if rssi >= -65 else (COLORS["status_warning"] if rssi >= -78 else COLORS["status_error"])
@@ -487,15 +477,7 @@ class WiFiPanel(ctk.CTkFrame):
             font=FONTS["body_bold"],
             text_color=signal_color,
             anchor="center",
-        ).grid(row=0, column=5, sticky="ew", padx=4)
-
-        # 6. Segurança (Centralizada)
-        ctk.CTkLabel(
-            inner, text=net["security"],
-            font=FONTS["small"],
-            text_color=COLORS["text_primary"],
-            anchor="center",
-        ).grid(row=0, column=6, sticky="ew", padx=4)
+        ).grid(row=0, column=4, sticky="ew", padx=4)
 
         self._row_widgets.append(row)
 
@@ -509,13 +491,12 @@ class WiFiPanel(ctk.CTkFrame):
 
     @staticmethod
     def _match_network_query(net: dict, query: str) -> bool:
-        """Verifica se a query coincide com qualquer campo da rede."""
+        """Verifica se a query coincide com qualquer um dos 5 campos da rede."""
         return (
             query in net["ssid"].lower()
             or query in net["bssid"].lower()
             or query in str(net["channel"])
             or query in net["band"].lower()
-            or query in net["security"].lower()
         )
 
     def stop_monitoring(self):

@@ -1,5 +1,13 @@
 [
     {
+        "id": "cednet",
+        "name": "CedNet DNS",
+        "primary_ip": "191.37.34.202",
+        "secondary_ip": "191.37.34.202",
+        "category": "CedNet Telecom",
+        "enabled": true
+    },
+    {
         "id": "cloudflare",
         "name": "Cloudflare",
         "primary_ip": "1.1.1.1",
@@ -72,27 +80,11 @@
         "enabled": true
     },
     {
-        "id": "alternate",
-        "name": "Alternate DNS",
-        "primary_ip": "76.76.19.19",
-        "secondary_ip": "23.253.163.53",
-        "category": "Filtro de Anúncios",
-        "enabled": true
-    },
-    {
         "id": "controld",
         "name": "Control D",
         "primary_ip": "76.76.2.0",
         "secondary_ip": "76.76.10.0",
         "category": "Privacidade",
-        "enabled": true
-    },
-    {
-        "id": "dnswatch",
-        "name": "DNS.WATCH",
-        "primary_ip": "84.200.69.80",
-        "secondary_ip": "84.200.70.40",
-        "category": "Neutro / Sem Logs",
         "enabled": true
     },
     {

@@ -9,6 +9,7 @@ from typing import List
 from modules.dns_models import DNSProvider
 
 DEFAULT_PROVIDERS = [
+    {"id": "cednet", "name": "CedNet DNS", "primary_ip": "191.37.34.202", "secondary_ip": "191.37.34.202", "category": "CedNet Telecom", "enabled": True},
     {"id": "cloudflare", "name": "Cloudflare", "primary_ip": "1.1.1.1", "secondary_ip": "1.0.0.1", "category": "Público / Rápido", "enabled": True},
     {"id": "google", "name": "Google Public DNS", "primary_ip": "8.8.8.8", "secondary_ip": "8.8.4.4", "category": "Público / Global", "enabled": True},
     {"id": "opendns", "name": "OpenDNS", "primary_ip": "208.67.222.222", "secondary_ip": "208.67.220.220", "category": "Segurança / Cisco", "enabled": True},
@@ -18,16 +19,14 @@ DEFAULT_PROVIDERS = [
     {"id": "cleanbrowsing", "name": "CleanBrowsing", "primary_ip": "185.228.168.9", "secondary_ip": "185.228.169.9", "category": "Filtro de Conteúdo", "enabled": True},
     {"id": "yandex", "name": "Yandex DNS", "primary_ip": "77.88.8.8", "secondary_ip": "77.88.8.1", "category": "Público", "enabled": True},
     {"id": "neustar", "name": "Neustar UltraDNS", "primary_ip": "156.154.70.1", "secondary_ip": "156.154.71.1", "category": "Corporativo", "enabled": True},
-    {"id": "alternate", "name": "Alternate DNS", "primary_ip": "76.76.19.19", "secondary_ip": "23.253.163.53", "category": "Filtro de Anúncios", "enabled": True},
     {"id": "controld", "name": "Control D", "primary_ip": "76.76.2.0", "secondary_ip": "76.76.10.0", "category": "Privacidade", "enabled": True},
-    {"id": "dnswatch", "name": "DNS.WATCH", "primary_ip": "84.200.69.80", "secondary_ip": "84.200.70.40", "category": "Neutro / Sem Logs", "enabled": True},
     {"id": "verisign", "name": "Verisign", "primary_ip": "64.6.64.6", "secondary_ip": "64.6.65.6", "category": "Estabilidade", "enabled": True},
     {"id": "safedns", "name": "SafeDNS", "primary_ip": "195.46.39.39", "secondary_ip": "195.46.39.40", "category": "Segurança", "enabled": True},
 ]
 
 
 class DNSRepository:
-    """Gerencia a leitura e escrita do arquivo data/dns_providers.json."""
+    """Gerenciador do repositório de provedores DNS."""
 
     def __init__(self, file_path: str = ""):
         if not file_path:
@@ -36,15 +35,28 @@ class DNSRepository:
         self.file_path = file_path
 
     def load_providers(self) -> List[DNSProvider]:
-        """Carrega os provedores de DNS do arquivo JSON. Se não existir, gera o padrão."""
+        """Carrega os provedores de DNS garantindo CedNet DNS e removendo Alternate e DNS.WATCH."""
+        providers = []
         if not os.path.exists(self.file_path):
-            self.save_providers([DNSProvider.from_dict(p) for p in DEFAULT_PROVIDERS])
-            return [DNSProvider.from_dict(p) for p in DEFAULT_PROVIDERS]
+            providers = [DNSProvider.from_dict(p) for p in DEFAULT_PROVIDERS]
+            self.save_providers(providers)
+            return providers
 
         try:
             with open(self.file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return [DNSProvider.from_dict(p) for p in data if isinstance(p, dict)]
+                loaded = [DNSProvider.from_dict(p) for p in data if isinstance(p, dict)]
+
+            # Filtra removidos (alternate e dnswatch)
+            filtered = [p for p in loaded if p.id not in ("alternate", "dnswatch")]
+
+            # Garante que CedNet DNS esteja presente no topo
+            if not any(p.id == "cednet" for p in filtered):
+                cednet_prov = DNSProvider.from_dict(DEFAULT_PROVIDERS[0])
+                filtered.insert(0, cednet_prov)
+
+            self.save_providers(filtered)
+            return filtered
         except Exception:
             return [DNSProvider.from_dict(p) for p in DEFAULT_PROVIDERS]
 
