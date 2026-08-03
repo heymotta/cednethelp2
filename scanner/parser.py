@@ -1,71 +1,164 @@
-"""Parser tolerante para respostas do Ubiquiti Discovery Protocol.
+"""Parser TLV binário para respostas do Ubiquiti Discovery Protocol (UDP/10001).
 
-As versões de firmware variam nos nomes dos campos. O parser aceita os
-formatos TLV e texto ``chave=valor`` observados nas respostas UDP/10001.
+Formato do pacote de resposta:
+  Header (4 bytes): [version:u8] [command:u8] [payload_length:u16be]
+  Payload: sequência contígua de blocos TLV
+    [type:u8] [length:u16be] [value: N bytes]
+
+TLV Field IDs documentados:
+  0x01 = Hardware MAC (6 bytes)
+  0x02 = IP Info (6 bytes MAC + 4 bytes IPv4)
+  0x03 = Firmware Version (string)
+  0x0A = Uptime (uint32 big-endian)
+  0x0B = Hostname / System Name (string)
+  0x0C = Short Model / Platform (string)
+  0x0D = ESSID (string)
+  0x14 = Model Name (string)
+  0x15 = Model Name alternativo (string)
+  0x17 = Is Default State (uint8 boolean)
 """
 
-import ipaddress
-import re
+import socket
+import struct
 from datetime import datetime
 
 from .models import UbiquitiDevice
 
-_ALIASES = {
-    "model": ("model", "product", "devicetype", "device_type", "board"),
-    "system_name": ("hostname", "systemname", "system_name", "name", "host"),
-    "firmware": ("firmware", "version", "swversion", "software"),
-    "mac": ("mac", "macaddress", "hwaddr", "hardwareaddress", "hardware_address"),
-    "platform": ("platform", "arch", "architecture"),
-    "protocol_version": ("protocol", "protocolversion", "discoveryversion"),
-}
 
-
-def _normal_key(value: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", value.lower())
-
-
-def _fields(payload: bytes) -> dict[str, str]:
-    text = payload.decode("utf-8", errors="ignore").replace("\x00", "\n")
-    fields: dict[str, str] = {}
-    for match in re.finditer(r"([A-Za-z][A-Za-z0-9_. -]{1,30})\s*[:=]\s*([^\r\n\x00]+)", text):
-        fields[_normal_key(match.group(1))] = match.group(2).strip(" \t\x00\"'")
-
-    # Algumas respostas são TLV ASCII: [length][key][value]. Também extraímos
-    # os tokens para aproveitar respostas cujo comprimento não é padronizado.
-    tokens = [t.strip(" \t\r\n\x00\"'") for t in re.split(r"[^A-Za-z0-9:._/-]+", text) if t.strip()]
-    for token in tokens:
-        if ":" in token or "=" in token:
-            key, value = re.split(r"[:=]", token, maxsplit=1)
-            if value:
-                fields.setdefault(_normal_key(key), value)
-    return fields
-
-
-def _find(fields: dict[str, str], name: str) -> str:
-    for alias in _ALIASES[name]:
-        if _normal_key(alias) in fields:
-            return fields[_normal_key(alias)]
+def _format_mac(raw: bytes) -> str:
+    """Formata 6 bytes binários em string MAC 'AA:BB:CC:DD:EE:FF'."""
+    if len(raw) >= 6:
+        return ":".join(f"{b:02X}" for b in raw[:6])
     return ""
 
 
+def _decode_string(raw: bytes) -> str:
+    """Decodifica bytes em string UTF-8, removendo nulos e espaços."""
+    return raw.decode("utf-8", errors="ignore").strip(" \t\r\n\x00")
+
+
+def parse_tlv_payload(data: bytes, offset: int) -> dict[int, bytes]:
+    """Extrai todos os blocos TLV do payload binário retornando {type_id: value_bytes}."""
+    fields: dict[int, bytes] = {}
+    while offset + 3 <= len(data):
+        tag_type = data[offset]
+        try:
+            tag_len = struct.unpack(">H", data[offset + 1:offset + 3])[0]
+        except struct.error:
+            break
+        offset += 3
+
+        if offset + tag_len > len(data):
+            break
+
+        value = data[offset:offset + tag_len]
+        offset += tag_len
+
+        # Mantém o primeiro valor encontrado para cada type_id
+        if tag_type not in fields:
+            fields[tag_type] = value
+
+    return fields
+
+
 def parse_response(payload: bytes, address: tuple[str, int], elapsed_ms: float | None = None) -> UbiquitiDevice | None:
-    """Converte uma resposta UDP em dispositivo; ignora tráfego não reconhecido."""
-    try:
-        ipaddress.ip_address(address[0])
-    except ValueError:
+    """Converte uma resposta UDP em UbiquitiDevice parseando o TLV binário real.
+
+    Ignora pacotes menores que 4 bytes ou com versão inválida.
+    """
+    if len(payload) < 4:
         return None
-    fields = _fields(payload)
-    mac = _find(fields, "mac").replace("-", ":").upper()
-    if re.fullmatch(r"[0-9A-F]{12}", mac):
-        mac = ":".join(mac[i:i + 2] for i in range(0, 12, 2))
-    # Respostas binárias podem não conter chaves, mas um IP/marca válido ainda
-    # deve ser exibido para diagnóstico.
-    if not fields and b"ubiquiti" not in payload.lower() and not mac and address[1] != 10001:
+
+    # Header: version(u8), command(u8), payload_length(u16be)
+    version = payload[0]
+    command = payload[1]
+
+    # Versões válidas: 1 ou 2. Comando de resposta é tipicamente 0x00, 0x01 ou 0x06.
+    if version not in (1, 2):
         return None
+
+    # Extrair campos TLV do payload (começa no offset 4)
+    fields = parse_tlv_payload(payload, 4)
+
+    # Se não extraiu nenhum campo TLV, não é uma resposta válida
+    if not fields:
+        return None
+
+    # --- Decodificar cada campo TLV ---
+
+    # MAC Address (0x01): 6 bytes binários
+    mac = ""
+    if 0x01 in fields:
+        mac = _format_mac(fields[0x01])
+
+    # IP Info (0x02): 6 bytes MAC + 4 bytes IPv4
+    ip = address[0]
+    if 0x02 in fields and len(fields[0x02]) >= 10:
+        ip_bytes = fields[0x02][6:10]
+        try:
+            ip = socket.inet_ntoa(ip_bytes)
+        except (OSError, ValueError):
+            pass
+        # Se o MAC ainda está vazio, extrair do campo 0x02
+        if not mac:
+            mac = _format_mac(fields[0x02][:6])
+
+    # Firmware (0x03)
+    firmware = _decode_string(fields[0x03]) if 0x03 in fields else ""
+
+    # Uptime (0x0A): uint32 big-endian
+    uptime = None
+    if 0x0A in fields:
+        raw = fields[0x0A]
+        try:
+            if len(raw) == 4:
+                uptime = struct.unpack(">I", raw)[0]
+            elif len(raw) >= 8:
+                uptime = struct.unpack(">Q", raw)[0]
+        except struct.error:
+            pass
+
+    # Hostname / System Name (0x0B)
+    system_name = _decode_string(fields[0x0B]) if 0x0B in fields else ""
+
+    # Platform / Short Model (0x0C)
+    platform = _decode_string(fields[0x0C]) if 0x0C in fields else ""
+
+    # ESSID (0x0D)
+    essid = _decode_string(fields[0x0D]) if 0x0D in fields else ""
+
+    # Model Name (0x14 ou 0x15)
+    model = ""
+    if 0x14 in fields:
+        model = _decode_string(fields[0x14])
+    elif 0x15 in fields:
+        model = _decode_string(fields[0x15])
+
+    # Se model está vazio mas platform tem valor, usar platform como modelo
+    if not model and platform:
+        model = platform
+
+    # Is Default State (0x17)
+    is_default = False
+    if 0x17 in fields and fields[0x17]:
+        is_default = bool(fields[0x17][0])
+
+    # Protocol version da resposta
+    proto_version = f"v{version}"
+
     return UbiquitiDevice(
-        ip=address[0], mac=mac, model=_find(fields, "model"),
-        system_name=_find(fields, "system_name"), firmware=_find(fields, "firmware"),
-        protocol_version=_find(fields, "protocol_version"),
-        hardware_address=mac, platform=_find(fields, "platform"),
-        response_ms=elapsed_ms, discovered_at=datetime.now(), raw_fields=fields,
+        ip=ip,
+        mac=mac,
+        model=model,
+        system_name=system_name,
+        firmware=firmware,
+        protocol_version=proto_version,
+        hardware_address=mac,
+        platform=platform,
+        essid=essid,
+        uptime=uptime,
+        is_default=is_default,
+        response_ms=elapsed_ms,
+        discovered_at=datetime.now(),
+        raw_fields=fields,
     )

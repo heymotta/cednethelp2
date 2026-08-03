@@ -1,9 +1,11 @@
 {
-    "version": "1.8.1",
+    "version": "1.9.0",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.8.1/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.0/CedNet_Help.zip",
     "changelog": [
-        "Removido CedNet DNS dos testes de DNS"
+        "Correcao completa do Scanner Ubiquiti: parser TLV binario real",
+        "probe v1+v2 de 4 bytes",
+        "timeout 4s com 3 envios"
     ],
-    "sha256": "d277bd8e56e9616a05896680021d3fb7f3495849aed8de82cb251606b8640bb1"
+    "sha256": "eceb193da197c457e76bdca907ddd85b48d32b4c75625faabd095cbe09e2e764"
 }
