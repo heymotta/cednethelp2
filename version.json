@@ -1,11 +1,10 @@
 {
-    "version": "1.9.0",
+    "version": "1.9.1",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.0/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.1/CedNet_Help.zip",
     "changelog": [
-        "Correcao completa do Scanner Ubiquiti: parser TLV binario real",
-        "probe v1+v2 de 4 bytes",
-        "timeout 4s com 3 envios"
+        "Scanner Ubiquiti: janela de detalhes profissional com cards e troca automatica de IP da interface para sub-rede do radio (",
+        "245)"
     ],
-    "sha256": "eceb193da197c457e76bdca907ddd85b48d32b4c75625faabd095cbe09e2e764"
+    "sha256": "339818ed31bfd6194727deca6bc4d07b32c4d1d2838e7a9b868fbdbb629c6212"
 }

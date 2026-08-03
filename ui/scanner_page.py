@@ -1,7 +1,10 @@
 """Página do scanner nativo de descoberta Ubiquiti."""
 
+import ctypes
 import ipaddress
 import queue
+import subprocess
+import threading
 import time
 import webbrowser
 from tkinter import ttk
@@ -11,6 +14,48 @@ import customtkinter as ctk
 from modules.utils import COLORS, FONTS
 from scanner.discovery import UbiquitiDiscovery
 from scanner.models import NetworkInterface, UbiquitiDevice
+
+
+def _is_admin() -> bool:
+    """Verifica se o processo está sendo executado como Administrador."""
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin() != 0
+    except Exception:
+        return False
+
+
+def _set_static_ip(interface_name: str, ip: str, mask: str) -> tuple[bool, str]:
+    """Altera o IP da interface de rede via netsh (requer privilégios de admin)."""
+    try:
+        cmd = (
+            f'netsh interface ip set address name="{interface_name}" '
+            f'static {ip} {mask}'
+        )
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="cp850",
+            errors="replace",
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=15,
+        )
+        if result.returncode == 0:
+            return True, ""
+        return False, result.stderr.strip() or result.stdout.strip() or "Erro desconhecido"
+    except subprocess.TimeoutExpired:
+        return False, "Tempo esgotado ao alterar o IP da interface."
+    except Exception as exc:
+        return False, str(exc)
+
+
+def _compute_tech_ip(device_ip: str, suffix: int = 245) -> str:
+    """Calcula o IP do técnico: mesma sub-rede do dispositivo com último octeto = suffix."""
+    parts = device_ip.split(".")
+    if len(parts) == 4:
+        parts[3] = str(suffix)
+        return ".".join(parts)
+    return ""
 
 
 class UbiquitiScannerPage(ctk.CTkFrame):
@@ -181,6 +226,10 @@ class UbiquitiScannerPage(ctk.CTkFrame):
                 continue
             self.tree.insert("", "end", iid=device.key, values=(device.model or "-", device.ip, device.mac or "-", device.system_name or "-", device.firmware or "-", device.protocol_version or "-"))
 
+    # ================================================================
+    # Janela de Detalhes do Equipamento (Design Profissional)
+    # ================================================================
+
     def _show_details(self, _event=None):
         selected = self.tree.selection()
         if not selected:
@@ -188,20 +237,308 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         device = self.devices.get(selected[0])
         if not device:
             return
+
+        interface = self._selected_interface()
+
         modal = ctk.CTkToplevel(self)
-        modal.title(f"Detalhes Ubiquiti - {device.ip}")
-        modal.geometry("510x430")
+        modal.title(f"Detalhes — {device.system_name or device.ip}")
+        modal.geometry("560x520")
         modal.configure(fg_color=COLORS["bg_main"])
         modal.transient(self.winfo_toplevel())
-        ctk.CTkLabel(modal, text=f"{device.model or 'Dispositivo Ubiquiti'}", font=FONTS["title"], text_color=COLORS["text_primary"]).pack(anchor="w", padx=20, pady=(20, 14))
-        details = [("Modelo", device.model), ("IP", device.ip), ("MAC", device.mac), ("Hardware Address", device.hardware_address), ("Hostname", device.system_name), ("Firmware", device.firmware), ("Plataforma", device.platform), ("Versão do protocolo", device.protocol_version), ("Tempo de resposta", f"{device.response_ms:.1f} ms" if device.response_ms is not None else "-"), ("Última descoberta", device.discovered_at.strftime("%d/%m/%Y %H:%M:%S"))]
-        box = ctk.CTkScrollableFrame(modal, fg_color=COLORS["bg_card"])
-        box.pack(fill="both", expand=True, padx=20, pady=(0, 14))
-        for label, value in details:
-            ctk.CTkLabel(box, text=f"{label}:", width=165, anchor="w", font=FONTS["body_bold"], text_color=COLORS["text_secondary"]).pack(side="left", padx=8, pady=5)
-            ctk.CTkLabel(box, text=value or "-", anchor="w", font=FONTS["mono"], text_color=COLORS["text_primary"]).pack(fill="x", padx=8, pady=5)
-        ctk.CTkButton(modal, text="Abrir Interface Web", command=lambda: webbrowser.open(f"http://{device.ip}"), width=190).pack(side="left", padx=(20, 5), pady=(0, 18))
-        ctk.CTkButton(modal, text="Fechar", fg_color=COLORS["bg_card_alt"], command=modal.destroy, width=100).pack(side="right", padx=(5, 20), pady=(0, 18))
+        modal.resizable(False, False)
+        modal.grab_set()
+
+        # ── Header com identidade do equipamento ──
+        header_frame = ctk.CTkFrame(modal, fg_color=COLORS["bg_card"], corner_radius=14)
+        header_frame.pack(fill="x", padx=20, pady=(20, 0))
+
+        header_inner = ctk.CTkFrame(header_frame, fg_color="transparent")
+        header_inner.pack(fill="x", padx=20, pady=18)
+
+        # Ícone + info lado a lado
+        icon_label = ctk.CTkLabel(
+            header_inner, text="📡", font=("Segoe UI", 38),
+            text_color=COLORS["accent_cyan"],
+        )
+        icon_label.pack(side="left", padx=(0, 16))
+
+        info_block = ctk.CTkFrame(header_inner, fg_color="transparent")
+        info_block.pack(side="left", fill="x", expand=True)
+
+        # Nome do equipamento (destaque)
+        device_name = device.system_name or "Dispositivo Ubiquiti"
+        ctk.CTkLabel(
+            info_block, text=device_name,
+            font=("Segoe UI", 18, "bold"), text_color=COLORS["text_primary"],
+            anchor="w",
+        ).pack(anchor="w")
+
+        # Modelo
+        if device.model:
+            ctk.CTkLabel(
+                info_block, text=device.model,
+                font=("Segoe UI", 13), text_color=COLORS["accent_cyan"],
+                anchor="w",
+            ).pack(anchor="w", pady=(2, 0))
+
+        # IP em destaque
+        ctk.CTkLabel(
+            info_block, text=device.ip,
+            font=("Consolas", 14, "bold"), text_color=COLORS["text_secondary"],
+            anchor="w",
+        ).pack(anchor="w", pady=(4, 0))
+
+        # ── Card: Informações do Equipamento ──
+        equip_card = ctk.CTkFrame(modal, fg_color=COLORS["bg_card"], corner_radius=12)
+        equip_card.pack(fill="x", padx=20, pady=(14, 0))
+
+        ctk.CTkLabel(
+            equip_card, text="🔧  Informações do Equipamento",
+            font=("Segoe UI", 13, "bold"), text_color=COLORS["accent_cyan"],
+            anchor="w",
+        ).pack(anchor="w", padx=18, pady=(14, 8))
+
+        equip_grid = ctk.CTkFrame(equip_card, fg_color="transparent")
+        equip_grid.pack(fill="x", padx=18, pady=(0, 14))
+
+        equip_fields = [
+            ("Modelo", device.model),
+            ("Nome (System Name)", device.system_name),
+            ("Firmware", device.firmware),
+            ("Plataforma", device.platform),
+        ]
+        for row_idx, (label, value) in enumerate(equip_fields):
+            ctk.CTkLabel(
+                equip_grid, text=f"{label}:", width=160, anchor="w",
+                font=("Segoe UI", 12), text_color=COLORS["text_secondary"],
+            ).grid(row=row_idx, column=0, sticky="w", pady=3)
+            ctk.CTkLabel(
+                equip_grid, text=value or "—", anchor="w",
+                font=("Consolas", 12), text_color=COLORS["text_primary"],
+            ).grid(row=row_idx, column=1, sticky="w", padx=(8, 0), pady=3)
+
+        # ── Card: Informações de Rede ──
+        net_card = ctk.CTkFrame(modal, fg_color=COLORS["bg_card"], corner_radius=12)
+        net_card.pack(fill="x", padx=20, pady=(10, 0))
+
+        ctk.CTkLabel(
+            net_card, text="🌐  Informações de Rede",
+            font=("Segoe UI", 13, "bold"), text_color=COLORS["accent_cyan"],
+            anchor="w",
+        ).pack(anchor="w", padx=18, pady=(14, 8))
+
+        net_grid = ctk.CTkFrame(net_card, fg_color="transparent")
+        net_grid.pack(fill="x", padx=18, pady=(0, 14))
+
+        interface_label = interface.name if interface else "—"
+        response_text = f"{device.response_ms:.1f} ms" if device.response_ms is not None else "—"
+        discovered_text = device.discovered_at.strftime("%d/%m/%Y %H:%M:%S")
+
+        net_fields = [
+            ("Endereço IP", device.ip),
+            ("MAC Address", device.mac),
+            ("Interface utilizada", interface_label),
+            ("Tempo de resposta", response_text),
+            ("Última descoberta", discovered_text),
+        ]
+        for row_idx, (label, value) in enumerate(net_fields):
+            ctk.CTkLabel(
+                net_grid, text=f"{label}:", width=160, anchor="w",
+                font=("Segoe UI", 12), text_color=COLORS["text_secondary"],
+            ).grid(row=row_idx, column=0, sticky="w", pady=3)
+            ctk.CTkLabel(
+                net_grid, text=value or "—", anchor="w",
+                font=("Consolas", 12), text_color=COLORS["text_primary"],
+            ).grid(row=row_idx, column=1, sticky="w", padx=(8, 0), pady=3)
+
+        # ── Botões na parte inferior ──
+        btn_frame = ctk.CTkFrame(modal, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=20, pady=(16, 20))
+
+        ctk.CTkButton(
+            btn_frame, text="🌐  Abrir Interface Web", width=200,
+            font=("Segoe UI", 13, "bold"),
+            fg_color=COLORS["accent"], hover_color=COLORS["accent_hover"],
+            command=lambda: self._open_web_interface(device, interface, modal),
+        ).pack(side="left", padx=(0, 6))
+
+        ctk.CTkButton(
+            btn_frame, text="📋  Copiar IP", width=120,
+            font=("Segoe UI", 13),
+            fg_color=COLORS["bg_card_alt"], hover_color=COLORS["bg_card_hover"],
+            command=lambda: self._copy_to_clipboard(device.ip, modal),
+        ).pack(side="left", padx=6)
+
+        ctk.CTkButton(
+            btn_frame, text="✕  Fechar", width=100,
+            font=("Segoe UI", 13),
+            fg_color="#2a2a3e", hover_color="#3a3a50",
+            command=modal.destroy,
+        ).pack(side="right")
+
+    # ================================================================
+    # Copiar IP para a área de transferência
+    # ================================================================
+
+    def _copy_to_clipboard(self, text: str, modal: ctk.CTkToplevel):
+        """Copia o texto para a área de transferência e dá feedback visual."""
+        modal.clipboard_clear()
+        modal.clipboard_append(text)
+        modal.update()
+
+        # Feedback visual temporário no title bar
+        original_title = modal.title()
+        modal.title("✓  IP copiado!")
+        modal.after(1500, lambda: modal.title(original_title))
+
+    # ================================================================
+    # Abrir Interface Web com troca automática de IP
+    # ================================================================
+
+    def _open_web_interface(self, device: UbiquitiDevice, interface: NetworkInterface | None, modal: ctk.CTkToplevel):
+        """Configura o IP da interface para a mesma sub-rede do rádio (.245) e abre o navegador."""
+        if not interface:
+            self._show_status_message(modal, "Nenhuma interface de rede selecionada.", is_error=True)
+            return
+
+        tech_ip = _compute_tech_ip(device.ip, suffix=245)
+        if not tech_ip:
+            self._show_status_message(modal, "Não foi possível calcular o IP do técnico.", is_error=True)
+            return
+
+        # Verificar se a interface já está na sub-rede correta (mesmo /24 com .245)
+        current_ip = interface.address
+        current_subnet = ".".join(current_ip.split(".")[:3])
+        target_subnet = ".".join(device.ip.split(".")[:3])
+
+        if current_subnet == target_subnet and current_ip.split(".")[-1] == "245":
+            # Já está configurado corretamente — abrir direto
+            webbrowser.open(f"http://{device.ip}")
+            return
+
+        # Verificar permissões de administrador
+        if not _is_admin():
+            self._show_status_message(
+                modal,
+                "⚠  Permissão necessária!\n\n"
+                "Para alterar o IP da interface de rede automaticamente, "
+                "o CedNet Help precisa ser executado como Administrador.\n\n"
+                "Clique com o botão direito no atalho → Executar como administrador.",
+                is_error=True,
+                large=True,
+            )
+            return
+
+        # Mostrar progresso no modal
+        self._show_ip_change_progress(modal, device, interface, tech_ip)
+
+    def _show_ip_change_progress(
+        self,
+        modal: ctk.CTkToplevel,
+        device: UbiquitiDevice,
+        interface: NetworkInterface,
+        tech_ip: str,
+    ):
+        """Exibe progresso da alteração de IP e executa em background."""
+        # Criar overlay de progresso sobre o modal
+        overlay = ctk.CTkFrame(modal, fg_color=COLORS["bg_main"])
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+
+        inner = ctk.CTkFrame(overlay, fg_color="transparent")
+        inner.place(relx=0.5, rely=0.5, anchor="center")
+
+        ctk.CTkLabel(
+            inner, text="🔄", font=("Segoe UI", 42),
+        ).pack(pady=(0, 12))
+
+        ctk.CTkLabel(
+            inner, text="Configurando rede...",
+            font=("Segoe UI", 16, "bold"), text_color=COLORS["text_primary"],
+        ).pack(pady=(0, 8))
+
+        status_label = ctk.CTkLabel(
+            inner,
+            text=f"Alterando IP da interface '{interface.name}'\npara {tech_ip} / 255.255.255.0",
+            font=("Segoe UI", 12), text_color=COLORS["text_secondary"],
+            justify="center",
+        )
+        status_label.pack(pady=(0, 16))
+
+        progress = ctk.CTkProgressBar(inner, width=300, mode="indeterminate")
+        progress.pack(pady=(0, 8))
+        progress.start()
+
+        def _worker():
+            mask = "255.255.255.0"
+            success, error_msg = _set_static_ip(interface.name, tech_ip, mask)
+
+            if success:
+                # Aguardar o Windows aplicar a configuração
+                time.sleep(2.0)
+                # Abrir o navegador
+                webbrowser.open(f"http://{device.ip}")
+
+                # Atualizar UI no thread principal
+                modal.after(0, lambda: _on_success())
+            else:
+                modal.after(0, lambda: _on_error(error_msg))
+
+        def _on_success():
+            progress.stop()
+            status_label.configure(
+                text=f"✅  IP alterado para {tech_ip}\nAbrindo http://{device.ip} no navegador...",
+                text_color=COLORS["status_ok"],
+            )
+            # Fechar overlay após 2 segundos
+            modal.after(2000, overlay.destroy)
+
+        def _on_error(error_msg: str):
+            progress.stop()
+            progress.pack_forget()
+            status_label.configure(
+                text=f"❌  Erro ao alterar o IP da interface\n\n{error_msg}",
+                text_color=COLORS["status_error"],
+            )
+            ctk.CTkButton(
+                inner, text="Fechar", width=100,
+                fg_color=COLORS["bg_card_alt"], hover_color=COLORS["bg_card_hover"],
+                command=overlay.destroy,
+            ).pack(pady=(8, 0))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _show_status_message(
+        self,
+        modal: ctk.CTkToplevel,
+        message: str,
+        is_error: bool = False,
+        large: bool = False,
+    ):
+        """Exibe uma mensagem de status ou erro em um overlay temporário."""
+        overlay = ctk.CTkFrame(modal, fg_color=COLORS["bg_main"])
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+
+        inner = ctk.CTkFrame(overlay, fg_color="transparent")
+        inner.place(relx=0.5, rely=0.5, anchor="center")
+
+        icon = "❌" if is_error else "✅"
+        color = COLORS["status_error"] if is_error else COLORS["status_ok"]
+
+        ctk.CTkLabel(
+            inner, text=icon, font=("Segoe UI", 36),
+        ).pack(pady=(0, 10))
+
+        ctk.CTkLabel(
+            inner, text=message,
+            font=("Segoe UI", 12), text_color=color,
+            justify="center", wraplength=420 if large else 320,
+        ).pack(pady=(0, 16))
+
+        ctk.CTkButton(
+            inner, text="Entendi", width=100,
+            fg_color=COLORS["bg_card_alt"], hover_color=COLORS["bg_card_hover"],
+            command=overlay.destroy,
+        ).pack()
 
     def stop_monitoring(self):
         self.auto_var.set(False)
