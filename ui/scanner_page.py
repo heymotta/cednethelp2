@@ -518,20 +518,53 @@ class UbiquitiScannerPage(ctk.CTkFrame):
 
         modal = ctk.CTkToplevel(self)
         modal.title(f"Detalhes — {device.system_name or device.ip}")
-        modal.geometry("560x540")
+        modal.geometry("560x620")
         modal.configure(fg_color=COLORS["bg_main"])
         modal.transient(self.winfo_toplevel())
         modal.resizable(False, False)
         modal.grab_set()
 
+        # ── Botões FIXOS na parte inferior (empacotados PRIMEIRO para nunca sumir) ──
+        btn_frame = ctk.CTkFrame(modal, fg_color="transparent")
+        btn_frame.pack(side="bottom", fill="x", padx=20, pady=(12, 18))
+
+        ctk.CTkButton(
+            btn_frame, text="🌐  Abrir Interface Web", width=200, height=38,
+            font=("Segoe UI", 13, "bold"),
+            fg_color=COLORS["accent"], hover_color=COLORS["accent_hover"],
+            command=lambda: self._open_web_interface(device, interface, modal),
+        ).pack(side="left", padx=(0, 6))
+
+        ctk.CTkButton(
+            btn_frame, text="📋  Copiar IP", width=120, height=38,
+            font=("Segoe UI", 13),
+            fg_color=COLORS["bg_card_alt"], hover_color=COLORS["bg_card_hover"],
+            command=lambda: self._copy_to_clipboard(device.ip, modal),
+        ).pack(side="left", padx=6)
+
+        ctk.CTkButton(
+            btn_frame, text="✕  Fechar", width=100, height=38,
+            font=("Segoe UI", 13),
+            fg_color="#2a2a3e", hover_color="#3a3a50",
+            command=modal.destroy,
+        ).pack(side="right")
+
+        # Separador sutil acima dos botões
+        ctk.CTkFrame(modal, fg_color=COLORS["border"], height=1).pack(side="bottom", fill="x", padx=20)
+
+        # ── Área de conteúdo scrollável ──
+        content = ctk.CTkScrollableFrame(modal, fg_color="transparent")
+
+        content.pack(fill="both", expand=True, padx=10, pady=(10, 4))
+
         # ── Header com identidade do equipamento ──
         header_bg = "#0d3b66" if is_connected else COLORS["bg_card"]
         header_border = "#1a73e8" if is_connected else COLORS["bg_card"]
         header_frame = ctk.CTkFrame(
-            modal, fg_color=header_bg, corner_radius=14,
+            content, fg_color=header_bg, corner_radius=14,
             border_width=1 if is_connected else 0, border_color=header_border,
         )
-        header_frame.pack(fill="x", padx=20, pady=(20, 0))
+        header_frame.pack(fill="x", padx=8, pady=(8, 0))
 
         header_inner = ctk.CTkFrame(header_frame, fg_color="transparent")
         header_inner.pack(fill="x", padx=20, pady=18)
@@ -580,8 +613,8 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         ).pack(anchor="w", pady=(4, 0))
 
         # ── Card: Informações do Equipamento ──
-        equip_card = ctk.CTkFrame(modal, fg_color=COLORS["bg_card"], corner_radius=12)
-        equip_card.pack(fill="x", padx=20, pady=(14, 0))
+        equip_card = ctk.CTkFrame(content, fg_color=COLORS["bg_card"], corner_radius=12)
+        equip_card.pack(fill="x", padx=8, pady=(12, 0))
 
         ctk.CTkLabel(
             equip_card, text="🔧  Informações do Equipamento",
@@ -609,8 +642,8 @@ class UbiquitiScannerPage(ctk.CTkFrame):
             ).grid(row=row_idx, column=1, sticky="w", padx=(8, 0), pady=3)
 
         # ── Card: Informações de Rede ──
-        net_card = ctk.CTkFrame(modal, fg_color=COLORS["bg_card"], corner_radius=12)
-        net_card.pack(fill="x", padx=20, pady=(10, 0))
+        net_card = ctk.CTkFrame(content, fg_color=COLORS["bg_card"], corner_radius=12)
+        net_card.pack(fill="x", padx=8, pady=(10, 0))
 
         ctk.CTkLabel(
             net_card, text="🌐  Informações de Rede",
@@ -642,30 +675,7 @@ class UbiquitiScannerPage(ctk.CTkFrame):
                 font=("Consolas", 12), text_color=COLORS["text_primary"],
             ).grid(row=row_idx, column=1, sticky="w", padx=(8, 0), pady=3)
 
-        # ── Botões na parte inferior ──
-        btn_frame = ctk.CTkFrame(modal, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=20, pady=(16, 20))
-
-        ctk.CTkButton(
-            btn_frame, text="🌐  Abrir Interface Web", width=200,
-            font=("Segoe UI", 13, "bold"),
-            fg_color=COLORS["accent"], hover_color=COLORS["accent_hover"],
-            command=lambda: self._open_web_interface(device, interface, modal),
-        ).pack(side="left", padx=(0, 6))
-
-        ctk.CTkButton(
-            btn_frame, text="📋  Copiar IP", width=120,
-            font=("Segoe UI", 13),
-            fg_color=COLORS["bg_card_alt"], hover_color=COLORS["bg_card_hover"],
-            command=lambda: self._copy_to_clipboard(device.ip, modal),
-        ).pack(side="left", padx=6)
-
-        ctk.CTkButton(
-            btn_frame, text="✕  Fechar", width=100,
-            font=("Segoe UI", 13),
-            fg_color="#2a2a3e", hover_color="#3a3a50",
-            command=modal.destroy,
-        ).pack(side="right")
+        # Botões já foram empacotados no início (side="bottom") para ficarem sempre visíveis
 
     # ================================================================
     # Copiar IP para a área de transferência
@@ -759,13 +769,40 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         progress.pack(pady=(0, 8))
         progress.start()
 
+        def _verify_ip_applied(expected_ip: str, iface_name: str) -> bool:
+            """Verifica via ipconfig se o IP foi realmente aplicado na interface."""
+            import re as _re
+            try:
+                output = subprocess.check_output(
+                    "ipconfig",
+                    encoding="cp850",
+                    errors="replace",
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                    timeout=5,
+                )
+                # Procurar o IP esperado na saída do ipconfig
+                if expected_ip in output:
+                    return True
+            except Exception:
+                pass
+            return False
+
         def _worker():
             mask = "255.255.255.0"
             success, error_msg = _set_static_ip(interface.name, tech_ip, mask)
 
             if success:
                 # Aguardar o Windows aplicar a configuração
-                time.sleep(2.0)
+                time.sleep(2.5)
+
+                # Verificar se o IP foi realmente aplicado
+                if not _verify_ip_applied(tech_ip, interface.name):
+                    modal.after(0, lambda: _on_error(
+                        "Não foi possível configurar automaticamente o endereço IP da interface.\n"
+                        f"O IP {tech_ip} não foi detectado após a alteração."
+                    ))
+                    return
+
                 # Abrir o navegador
                 webbrowser.open(f"http://{device.ip}")
 
