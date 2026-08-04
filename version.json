@@ -1,10 +1,11 @@
 {
-    "version": "1.9.1",
+    "version": "1.9.2",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.1/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.2/CedNet_Help.zip",
     "changelog": [
-        "Scanner Ubiquiti: janela de detalhes profissional com cards e troca automatica de IP da interface para sub-rede do radio (",
-        "245)"
+        "Scanner Ubiquiti: deteccao automatica do radio conectado ao notebook com algoritmo multi-criterio",
+        "card informativo",
+        "destaque visual e fixacao no topo da lista"
     ],
-    "sha256": "339818ed31bfd6194727deca6bc4d07b32c4d1d2838e7a9b868fbdbb629c6212"
+    "sha256": "e6a5f5797fc109acfe251a4e06ba5484039c1ee21baf3c6c1bf430b50cfff5d4"
 }

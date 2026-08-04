@@ -58,6 +58,117 @@ def _compute_tech_ip(device_ip: str, suffix: int = 245) -> str:
     return ""
 
 
+# ================================================================
+# Detecção do Rádio Conectado Diretamente ao Notebook
+# ================================================================
+
+def _get_arp_macs_for_interface(interface_ip: str) -> set[str]:
+    """Obtém os MAC Addresses da tabela ARP para uma interface específica.
+
+    Executa `arp -a -N <interface_ip>` e extrai os MACs encontrados.
+    Retorna um set de MACs normalizados em uppercase (AA:BB:CC:DD:EE:FF).
+    """
+    macs: set[str] = set()
+    try:
+        output = subprocess.check_output(
+            f"arp -a -N {interface_ip}",
+            encoding="cp850",
+            errors="replace",
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=3,
+        )
+        import re
+        # Padrão de MAC no ARP do Windows: aa-bb-cc-dd-ee-ff
+        for match in re.finditer(r"([0-9a-fA-F]{2}[-:][0-9a-fA-F]{2}[-:][0-9a-fA-F]{2}[-:][0-9a-fA-F]{2}[-:][0-9a-fA-F]{2}[-:][0-9a-fA-F]{2})", output):
+            mac = match.group(1).upper().replace("-", ":")
+            # Ignorar broadcast FF:FF:FF:FF:FF:FF
+            if mac != "FF:FF:FF:FF:FF:FF":
+                macs.add(mac)
+    except Exception:
+        pass
+    return macs
+
+
+def _identify_connected_device(
+    devices: list[UbiquitiDevice],
+    interface: NetworkInterface | None,
+) -> UbiquitiDevice | None:
+    """Identifica qual dispositivo está fisicamente conectado ao notebook.
+
+    Algoritmo multi-critério com pontuação:
+    1. Tabela ARP: se o MAC do dispositivo está na ARP da interface → +40 pontos
+    2. Menor tempo de resposta (response_ms) → +30 pontos (apenas para o mais rápido)
+    3. Resposta extremamente rápida (<5ms) → +20 pontos
+    4. Diferença significativa de latência vs segundo mais rápido → +10 pontos
+
+    Limiar de confiança: precisa de pelo menos 50 pontos para ser considerado confiável.
+    """
+    if not devices or not interface:
+        return None
+
+    # Filtrar apenas dispositivos com response_ms válido
+    valid_devices = [d for d in devices if d.response_ms is not None and d.mac]
+    if not valid_devices:
+        return None
+
+    # Se há apenas um dispositivo, é certamente o conectado
+    if len(valid_devices) == 1:
+        return valid_devices[0]
+
+    # Critério 1: Tabela ARP da interface
+    arp_macs = _get_arp_macs_for_interface(interface.address)
+
+    # Calcular pontuação para cada dispositivo
+    scores: dict[str, float] = {}
+    for device in valid_devices:
+        score = 0.0
+        mac_normalized = device.mac.upper().replace("-", ":")
+
+        # ARP: MAC presente na tabela ARP da interface (+40)
+        if arp_macs and mac_normalized in arp_macs:
+            score += 40.0
+
+        scores[device.key] = score
+
+    # Critério 2 & 3: Latência
+    sorted_by_latency = sorted(valid_devices, key=lambda d: d.response_ms or 9999)
+    fastest = sorted_by_latency[0]
+
+    # O mais rápido ganha +30
+    scores[fastest.key] = scores.get(fastest.key, 0) + 30.0
+
+    # Se a latência é extremamente baixa (<5ms), +20
+    if fastest.response_ms is not None and fastest.response_ms < 5.0:
+        scores[fastest.key] += 20.0
+
+    # Critério 4: Diferença significativa vs o segundo
+    if len(sorted_by_latency) >= 2:
+        second = sorted_by_latency[1]
+        if (fastest.response_ms is not None and second.response_ms is not None
+                and second.response_ms > 0):
+            ratio = second.response_ms / max(fastest.response_ms, 0.1)
+            # Se o segundo é pelo menos 2x mais lento → +10
+            if ratio >= 2.0:
+                scores[fastest.key] += 10.0
+
+    # Encontrar o dispositivo com maior pontuação
+    if not scores:
+        return None
+
+    best_key = max(scores, key=lambda k: scores[k])
+    best_score = scores[best_key]
+
+    # Limiar de confiança: mínimo 50 pontos
+    if best_score < 50.0:
+        return None
+
+    return next((d for d in valid_devices if d.key == best_key), None)
+
+
+# ================================================================
+# Classe Principal: UbiquitiScannerPage
+# ================================================================
+
 class UbiquitiScannerPage(ctk.CTkFrame):
     """Interface não bloqueante para o protocolo UDP de descoberta Ubiquiti."""
 
@@ -66,6 +177,7 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         self.discovery = UbiquitiDiscovery()
         self.interfaces: list[NetworkInterface] = []
         self.devices: dict[str, UbiquitiDevice] = {}
+        self._connected_device: UbiquitiDevice | None = None
         self._queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self._auto_id: str | None = None
         self._poll_id: str | None = None
@@ -77,6 +189,8 @@ class UbiquitiScannerPage(ctk.CTkFrame):
     def _build(self):
         container = ctk.CTkFrame(self, fg_color="transparent")
         container.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # ── Header ──
         header = ctk.CTkFrame(container, fg_color=COLORS["bg_card"], corner_radius=12)
         header.pack(fill="x", pady=(0, 10))
         top = ctk.CTkFrame(header, fg_color="transparent")
@@ -97,6 +211,59 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         self.stop_button.pack(side="left", padx=3)
         ctk.CTkButton(controls, text="Atualizar", width=105, fg_color=COLORS["bg_card_alt"], hover_color=COLORS["bg_card_hover"], command=self._refresh_and_scan).pack(side="left", padx=3)
 
+        # ── Card do equipamento conectado (inicialmente oculto) ──
+        self.connected_card = ctk.CTkFrame(container, fg_color="#0d3b66", corner_radius=10, border_width=1, border_color="#1a73e8")
+        # NÃO empacotar ainda — será mostrado apenas quando houver detecção
+
+        self.connected_card_inner = ctk.CTkFrame(self.connected_card, fg_color="transparent")
+        self.connected_card_inner.pack(fill="x", padx=16, pady=12)
+
+        # Ícone + título
+        self.cc_header = ctk.CTkFrame(self.connected_card_inner, fg_color="transparent")
+        self.cc_header.pack(fill="x")
+
+        ctk.CTkLabel(
+            self.cc_header, text="⭐", font=("Segoe UI", 20),
+        ).pack(side="left", padx=(0, 8))
+
+        self.cc_title_block = ctk.CTkFrame(self.cc_header, fg_color="transparent")
+        self.cc_title_block.pack(side="left", fill="x", expand=True)
+
+        self.cc_label_title = ctk.CTkLabel(
+            self.cc_title_block, text="Equipamento Conectado",
+            font=("Segoe UI", 11, "bold"), text_color="#4caf50", anchor="w",
+        )
+        self.cc_label_title.pack(anchor="w")
+
+        self.cc_label_name = ctk.CTkLabel(
+            self.cc_title_block, text="—",
+            font=("Segoe UI", 14, "bold"), text_color=COLORS["text_primary"], anchor="w",
+        )
+        self.cc_label_name.pack(anchor="w")
+
+        # Info grid
+        self.cc_info = ctk.CTkFrame(self.connected_card_inner, fg_color="transparent")
+        self.cc_info.pack(fill="x", pady=(8, 0))
+
+        self.cc_fields: dict[str, ctk.CTkLabel] = {}
+        field_defs = [
+            ("IP", 0, 0), ("Firmware", 0, 2),
+            ("MAC", 1, 0), ("Interface", 1, 2),
+        ]
+        for label, row, col in field_defs:
+            lbl = ctk.CTkLabel(
+                self.cc_info, text=f"{label}:", anchor="w",
+                font=("Segoe UI", 10), text_color=COLORS["text_secondary"],
+            )
+            lbl.grid(row=row, column=col, sticky="w", padx=(0 if col == 0 else 20, 4), pady=2)
+            val = ctk.CTkLabel(
+                self.cc_info, text="—", anchor="w",
+                font=("Consolas", 10, "bold"), text_color=COLORS["text_primary"],
+            )
+            val.grid(row=row, column=col + 1, sticky="w", pady=2)
+            self.cc_fields[label] = val
+
+        # ── Status bar ──
         status = ctk.CTkFrame(container, fg_color=COLORS["bg_card"], corner_radius=9)
         status.pack(fill="x", pady=(0, 8))
         self.count_label = ctk.CTkLabel(status, text="Dispositivos encontrados: 0", font=FONTS["body_bold"], text_color=COLORS["accent_cyan"])
@@ -104,14 +271,16 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         self.time_label = ctk.CTkLabel(status, text="Tempo do scan: 0.0 segundos", font=FONTS["small"], text_color=COLORS["text_secondary"])
         self.time_label.pack(side="right", padx=14)
 
+        # ── Search ──
         search = ctk.CTkEntry(container, placeholder_text="Pesquisar por IP, nome, modelo ou firmware...", height=36, fg_color=COLORS["entry_bg"], border_color=COLORS["border"])
         search.pack(fill="x", pady=(0, 8))
         self.search_entry = search
         search.bind("<KeyRelease>", lambda _event: self._render())
 
+        # ── Table ──
         table_frame = ctk.CTkFrame(container, fg_color=COLORS["bg_card"], corner_radius=9)
         table_frame.pack(fill="both", expand=True)
-        columns = ("model", "ip", "mac", "name", "firmware", "protocol")
+        columns = ("status", "model", "ip", "mac", "name", "firmware")
         style = ttk.Style()
         try:
             style.theme_use("clam")
@@ -141,16 +310,40 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         )
 
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", style="Ubiquiti.Treeview")
-        headings = {"model": "Modelo", "ip": "Endereço IP", "mac": "MAC Address", "name": "Nome do equipamento", "firmware": "Firmware", "protocol": "Protocolo"}
-        widths = {"model": 150, "ip": 120, "mac": 145, "name": 175, "firmware": 150, "protocol": 90}
+        headings = {
+            "status": "",
+            "model": "Modelo",
+            "ip": "Endereço IP",
+            "mac": "MAC Address",
+            "name": "Nome do equipamento",
+            "firmware": "Firmware",
+        }
+        widths = {
+            "status": 28,
+            "model": 160,
+            "ip": 120,
+            "mac": 145,
+            "name": 175,
+            "firmware": 150,
+        }
         for col in columns:
             self.tree.heading(col, text=headings[col])
-            self.tree.column(col, width=widths[col], anchor="w")
+            anchor = "center" if col == "status" else "w"
+            self.tree.column(col, width=widths[col], anchor=anchor, minwidth=widths[col])
+
+        # Tag para linha do dispositivo conectado (destaque visual)
+        self.tree.tag_configure("connected", background="#0d3b66", foreground="#ffffff", font=("Segoe UI", 10, "bold"))
+        self.tree.tag_configure("normal", background=COLORS["bg_card"], foreground=COLORS["text_primary"])
+
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         self.tree.pack(side="left", fill="both", expand=True, padx=(8, 0), pady=8)
         scrollbar.pack(side="right", fill="y", padx=(0, 8), pady=8)
         self.tree.bind("<Double-1>", self._show_details)
+
+    # ================================================================
+    # Interface / Scan Controls
+    # ================================================================
 
     def _refresh_interfaces(self):
         self.interfaces = UbiquitiDiscovery.interfaces()
@@ -174,6 +367,9 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         self._started = time.perf_counter()
         self.scan_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
+        # Limpar detecção anterior
+        self._connected_device = None
+        self._hide_connected_card()
         self.discovery.scan(interface, lambda devices, elapsed: self._queue.put(("complete", (devices, elapsed))), lambda error: self._queue.put(("error", error)))
 
     def _stop_scan(self):
@@ -207,6 +403,8 @@ class UbiquitiScannerPage(ctk.CTkFrame):
                     self.time_label.configure(text=f"Tempo do scan: {elapsed:.1f} segundos")
                     self.scan_button.configure(state="normal")
                     self.stop_button.configure(state="disabled")
+                    # Detectar rádio conectado
+                    self._detect_connected_device()
                     self._render()
                 elif kind == "error":
                     self.scan_button.configure(state="normal")
@@ -216,15 +414,92 @@ class UbiquitiScannerPage(ctk.CTkFrame):
             pass
         self._poll_id = self.after(100, self._poll_queue)
 
+    # ================================================================
+    # Detecção do Rádio Conectado
+    # ================================================================
+
+    def _detect_connected_device(self):
+        """Executa a detecção do rádio conectado diretamente ao notebook."""
+        interface = self._selected_interface()
+        all_devices = list(self.devices.values())
+
+        self._connected_device = _identify_connected_device(all_devices, interface)
+
+        if self._connected_device:
+            self._show_connected_card(self._connected_device, interface)
+        else:
+            self._hide_connected_card()
+
+    def _show_connected_card(self, device: UbiquitiDevice, interface: NetworkInterface | None):
+        """Exibe o card com informações do rádio conectado."""
+        name = device.system_name or device.model or "Dispositivo Ubiquiti"
+        self.cc_label_name.configure(text=f"⭐  {name}")
+
+        self.cc_fields["IP"].configure(text=device.ip)
+        self.cc_fields["Firmware"].configure(text=device.firmware or "—")
+        self.cc_fields["MAC"].configure(text=device.mac or "—")
+        self.cc_fields["Interface"].configure(text=interface.name if interface else "—")
+
+        # Mostrar o card (inserir após o header, antes do status bar)
+        if not self.connected_card.winfo_ismapped():
+            self.connected_card.pack(fill="x", padx=5, pady=(0, 8), after=self.winfo_children()[0].winfo_children()[0])
+            # Re-empacotar para que fique na posição correta
+            self.connected_card.pack_forget()
+            # Inserir no container correto
+            container = self.winfo_children()[0]
+            children = container.winfo_children()
+            # Inserir após o header (children[0])
+            if len(children) > 1:
+                self.connected_card.pack(fill="x", padx=0, pady=(0, 8), before=children[1])
+
+    def _hide_connected_card(self):
+        """Oculta o card do rádio conectado."""
+        if self.connected_card.winfo_ismapped():
+            self.connected_card.pack_forget()
+
+    # ================================================================
+    # Renderização da Tabela
+    # ================================================================
+
     def _render(self):
         query = self.search_entry.get().strip().lower()
         for item in self.tree.get_children():
             self.tree.delete(item)
-        devices = sorted(self.devices.values(), key=lambda device: ipaddress.ip_address(device.ip))
-        for device in devices:
+
+        all_devices = sorted(self.devices.values(), key=lambda device: ipaddress.ip_address(device.ip))
+
+        # Separar: conectado primeiro, depois os demais
+        connected_key = self._connected_device.key if self._connected_device else None
+        connected_list = []
+        other_list = []
+
+        for device in all_devices:
             if query and query not in device.search_text():
                 continue
-            self.tree.insert("", "end", iid=device.key, values=(device.model or "-", device.ip, device.mac or "-", device.system_name or "-", device.firmware or "-", device.protocol_version or "-"))
+            if device.key == connected_key:
+                connected_list.append(device)
+            else:
+                other_list.append(device)
+
+        # Renderizar: conectado no topo, depois os demais
+        for device in connected_list + other_list:
+            is_connected = device.key == connected_key
+            status_icon = "⭐" if is_connected else ""
+            model_text = device.model or "-"
+            tag = "connected" if is_connected else "normal"
+
+            self.tree.insert(
+                "", "end", iid=device.key,
+                values=(
+                    status_icon,
+                    model_text,
+                    device.ip,
+                    device.mac or "-",
+                    device.system_name or "-",
+                    device.firmware or "-",
+                ),
+                tags=(tag,),
+            )
 
     # ================================================================
     # Janela de Detalhes do Equipamento (Design Profissional)
@@ -239,31 +514,47 @@ class UbiquitiScannerPage(ctk.CTkFrame):
             return
 
         interface = self._selected_interface()
+        is_connected = (self._connected_device and device.key == self._connected_device.key)
 
         modal = ctk.CTkToplevel(self)
         modal.title(f"Detalhes — {device.system_name or device.ip}")
-        modal.geometry("560x520")
+        modal.geometry("560x540")
         modal.configure(fg_color=COLORS["bg_main"])
         modal.transient(self.winfo_toplevel())
         modal.resizable(False, False)
         modal.grab_set()
 
         # ── Header com identidade do equipamento ──
-        header_frame = ctk.CTkFrame(modal, fg_color=COLORS["bg_card"], corner_radius=14)
+        header_bg = "#0d3b66" if is_connected else COLORS["bg_card"]
+        header_border = "#1a73e8" if is_connected else COLORS["bg_card"]
+        header_frame = ctk.CTkFrame(
+            modal, fg_color=header_bg, corner_radius=14,
+            border_width=1 if is_connected else 0, border_color=header_border,
+        )
         header_frame.pack(fill="x", padx=20, pady=(20, 0))
 
         header_inner = ctk.CTkFrame(header_frame, fg_color="transparent")
         header_inner.pack(fill="x", padx=20, pady=18)
 
         # Ícone + info lado a lado
+        icon_text = "⭐" if is_connected else "📡"
         icon_label = ctk.CTkLabel(
-            header_inner, text="📡", font=("Segoe UI", 38),
+            header_inner, text=icon_text, font=("Segoe UI", 38),
             text_color=COLORS["accent_cyan"],
         )
         icon_label.pack(side="left", padx=(0, 16))
 
         info_block = ctk.CTkFrame(header_inner, fg_color="transparent")
         info_block.pack(side="left", fill="x", expand=True)
+
+        # Badge "Rádio Conectado" se aplicável
+        if is_connected:
+            badge = ctk.CTkFrame(info_block, fg_color="#1b5e20", corner_radius=6)
+            badge.pack(anchor="w", pady=(0, 4))
+            ctk.CTkLabel(
+                badge, text="  🟢  Rádio Conectado  ",
+                font=("Segoe UI", 10, "bold"), text_color="#81c784",
+            ).pack(padx=6, pady=2)
 
         # Nome do equipamento (destaque)
         device_name = device.system_name or "Dispositivo Ubiquiti"
