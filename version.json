@@ -1,9 +1,9 @@
 {
-    "version": "1.9.4",
+    "version": "1.9.5",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.4/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.5/CedNet_Help.zip",
     "changelog": [
-        "Scanner Ubiquiti: corrigido falso erro na verificacao de IP apos alteracao da interface - implementado retry com ate 10 tentativas aguardando a pilha de rede do Windows atualizar"
+        "Scanner Ubiquiti: janela de detalhes substituida por menu de contexto (botao direito) e duplo clique abre direto a interface web do radio - fluxo profissional com menos cliques"
     ],
-    "sha256": "9cec1e5c4c9b747fdf5e81bf8725a53a55910d7c5b9c64645437d3b9465e21c5"
+    "sha256": "60a0eb0421142ec7eb135d640013a2db0563598cf402195f3d9bcf863013afcb"
 }
