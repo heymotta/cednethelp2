@@ -194,6 +194,7 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         # ── Header ──
         header = ctk.CTkFrame(container, fg_color=COLORS["bg_card"], corner_radius=12)
         header.pack(fill="x", pady=(0, 10))
+        self.header_frame = header
         top = ctk.CTkFrame(header, fg_color="transparent")
         top.pack(fill="x", padx=18, pady=14)
         ctk.CTkLabel(top, text="📡  Scanner Ubiquiti", font=FONTS["title"], text_color=COLORS["text_primary"]).pack(side="left")
@@ -369,9 +370,13 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         self._started = time.perf_counter()
         self.scan_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
-        # Limpar detecção anterior
+        # Limpar cache e registros antigos completamente para nova varredura
+        self.devices.clear()
         self._connected_device = None
         self._hide_connected_card()
+        self.count_label.configure(text="Dispositivos encontrados: 0")
+        self.time_label.configure(text="Escaneando...")
+        self._render()
         self.discovery.scan(interface, lambda devices, elapsed: self._queue.put(("complete", (devices, elapsed))), lambda error: self._queue.put(("error", error)))
 
     def _stop_scan(self):
@@ -400,7 +405,8 @@ class UbiquitiScannerPage(ctk.CTkFrame):
                 kind, payload = self._queue.get_nowait()
                 if kind == "complete":
                     devices, elapsed = payload
-                    self.devices.update({device.key: device for device in devices})
+                    # Substituir completamente os dispositivos encontrados nesta varredura
+                    self.devices = {device.key: device for device in devices}
                     self.count_label.configure(text=f"Dispositivos encontrados: {len(self.devices)}")
                     self.time_label.configure(text=f"Tempo do scan: {elapsed:.1f} segundos")
                     self.scan_button.configure(state="normal")
@@ -442,17 +448,8 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         self.cc_fields["MAC"].configure(text=device.mac or "—")
         self.cc_fields["Interface"].configure(text=interface.name if interface else "—")
 
-        # Mostrar o card (inserir após o header, antes do status bar)
         if not self.connected_card.winfo_ismapped():
-            self.connected_card.pack(fill="x", padx=5, pady=(0, 8), after=self.winfo_children()[0].winfo_children()[0])
-            # Re-empacotar para que fique na posição correta
-            self.connected_card.pack_forget()
-            # Inserir no container correto
-            container = self.winfo_children()[0]
-            children = container.winfo_children()
-            # Inserir após o header (children[0])
-            if len(children) > 1:
-                self.connected_card.pack(fill="x", padx=0, pady=(0, 8), before=children[1])
+            self.connected_card.pack(fill="x", pady=(0, 8), after=self.header_frame)
 
     def _hide_connected_card(self):
         """Oculta o card do rádio conectado."""
@@ -468,7 +465,13 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        all_devices = sorted(self.devices.values(), key=lambda device: ipaddress.ip_address(device.ip))
+        def _safe_ip_key(device: UbiquitiDevice):
+            try:
+                return ipaddress.ip_address(device.ip)
+            except Exception:
+                return ipaddress.ip_address("0.0.0.0")
+
+        all_devices = sorted(self.devices.values(), key=_safe_ip_key)
 
         # Separar: conectado primeiro, depois os demais
         connected_key = self._connected_device.key if self._connected_device else None
@@ -502,6 +505,8 @@ class UbiquitiScannerPage(ctk.CTkFrame):
                 ),
                 tags=(tag,),
             )
+
+        self.update_idletasks()
 
     # ================================================================
     # Menu de Contexto (Botão Direito)

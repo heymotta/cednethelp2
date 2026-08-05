@@ -1,9 +1,9 @@
 {
-    "version": "1.9.5",
+    "version": "1.9.6",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.5/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.6/CedNet_Help.zip",
     "changelog": [
-        "Scanner Ubiquiti: janela de detalhes substituida por menu de contexto (botao direito) e duplo clique abre direto a interface web do radio - fluxo profissional com menos cliques"
+        "Scanner Ubiquiti: eliminacao de cache em novas varreduras e correcao no preenchimento automatico da tabela no primeiro scan"
     ],
-    "sha256": "60a0eb0421142ec7eb135d640013a2db0563598cf402195f3d9bcf863013afcb"
+    "sha256": "1c45c0d7d077332ac312aba68cd87be61891e7870b8ceab83d609e4134e2a3b1"
 }
