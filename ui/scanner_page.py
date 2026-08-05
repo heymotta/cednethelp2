@@ -769,9 +769,12 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         progress.pack(pady=(0, 8))
         progress.start()
 
-        def _verify_ip_applied(expected_ip: str, iface_name: str) -> bool:
-            """Verifica via ipconfig se o IP foi realmente aplicado na interface."""
-            import re as _re
+        def _verify_ip_applied(expected_ip: str) -> bool:
+            """Verifica via ipconfig se o IP foi realmente aplicado.
+
+            Consulta o sistema operacional diretamente (sem cache),
+            procurando o IP esperado na saída do ipconfig.
+            """
             try:
                 output = subprocess.check_output(
                     "ipconfig",
@@ -780,11 +783,22 @@ class UbiquitiScannerPage(ctk.CTkFrame):
                     creationflags=subprocess.CREATE_NO_WINDOW,
                     timeout=5,
                 )
-                # Procurar o IP esperado na saída do ipconfig
-                if expected_ip in output:
-                    return True
+                return expected_ip in output
             except Exception:
-                pass
+                return False
+
+        def _wait_for_ip(expected_ip: str, max_attempts: int = 10, interval: float = 0.5) -> bool:
+            """Aguarda o Windows concluir a atualização da pilha de rede.
+
+            Realiza até `max_attempts` consultas ao ipconfig com `interval`
+            segundos entre cada tentativa, verificando se o IP esperado
+            já aparece na interface.
+            """
+            for attempt in range(max_attempts):
+                if _verify_ip_applied(expected_ip):
+                    return True
+                if attempt < max_attempts - 1:
+                    time.sleep(interval)
             return False
 
         def _worker():
@@ -792,11 +806,11 @@ class UbiquitiScannerPage(ctk.CTkFrame):
             success, error_msg = _set_static_ip(interface.name, tech_ip, mask)
 
             if success:
-                # Aguardar o Windows aplicar a configuração
-                time.sleep(2.5)
+                # Aguardar tempo inicial para o Windows iniciar a aplicação
+                time.sleep(1.5)
 
-                # Verificar se o IP foi realmente aplicado
-                if not _verify_ip_applied(tech_ip, interface.name):
+                # Aguardar a pilha de rede atualizar (até 10 tentativas x 500ms = 5s adicionais)
+                if not _wait_for_ip(tech_ip, max_attempts=10, interval=0.5):
                     modal.after(0, lambda: _on_error(
                         "Não foi possível configurar automaticamente o endereço IP da interface.\n"
                         f"O IP {tech_ip} não foi detectado após a alteração."
