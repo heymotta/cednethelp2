@@ -143,7 +143,7 @@ class NetworkPanel(ctk.CTkFrame):
         self._sync_with_manager()
 
     def _sync_with_manager(self):
-        current_version = network_manager.state_version
+        current_version = network_manager.version
 
         if current_version != self._last_seen_version:
             self._last_seen_version = current_version

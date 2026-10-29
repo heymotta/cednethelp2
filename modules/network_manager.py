@@ -58,6 +58,11 @@ class NetworkManager:
         # Listeners cadastrados
         self._listeners: list[Callable[[dict], None]] = []
 
+    @property
+    def state_version(self) -> int:
+        """Alias para self.version para compatibilidade com o NetworkPanel."""
+        return self.version
+
     # ================================================================
     # Controle de Ciclo de Vida
     # ================================================================
