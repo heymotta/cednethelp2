@@ -379,9 +379,31 @@ class NetworkInfo:
 
     def _get_dns(self) -> str:
         """
-        Obtém os servidores DNS configurados via ipconfig /all.
+        Obtém os servidores DNS configurados para a interface ativa.
+        Prioriza netsh na interface ativa (evita capturar DNS de outras interfaces ou IPv6),
+        com fallback para parsing inteligente do ipconfig /all.
         Retorna até 2 endereços DNS separados por vírgula.
         """
+        # Método 1: netsh na interface ativa (mais confiável para IPv4)
+        try:
+            iface = self._get_active_interface()
+            if iface:
+                output = subprocess.check_output(
+                    ["netsh", "interface", "ip", "show", "dns", f"name={iface}"],
+                    encoding="cp850",
+                    errors="replace",
+                    creationflags=_NO_WINDOW,
+                    timeout=3,
+                )
+                ips = re.findall(r"(\d+\.\d+\.\d+\.\d+)", output)
+                valid = [ip for ip in ips if ip != "0.0.0.0" and self._is_valid_ipv4(ip)]
+                if valid:
+                    unique_dns = list(dict.fromkeys(valid))
+                    return ", ".join(unique_dns[:2])
+        except (subprocess.SubprocessError, OSError):
+            pass
+
+        # Método 2: ipconfig /all com suporte a múltiplas linhas e IPv6 inicial
         try:
             output = subprocess.check_output(
                 "ipconfig /all",
@@ -391,16 +413,34 @@ class NetworkInfo:
                 timeout=5,
             )
 
-            # Busca servidores DNS (PT-BR e EN-US)
-            patterns = [
-                r"(?:Servidores\s+DNS|DNS\s+Servers)[\s.]*:\s*(\d+\.\d+\.\d+\.\d+)",
-            ]
+            # Se soubermos o nome da interface ativa, tenta pegar a seção correspondente
+            iface = self._get_active_interface()
+            text_to_search = output
+            if iface:
+                sections = re.split(r"\r?\n(?=[^\s].*?:)", output)
+                for sec in sections:
+                    if iface.lower() in sec.lower():
+                        text_to_search = sec
+                        break
 
-            for pattern in patterns:
-                matches = re.findall(pattern, output, re.IGNORECASE)
-                if matches:
-                    unique_dns = list(dict.fromkeys(matches))
-                    return ", ".join(unique_dns[:2])
+            # Busca bloco de DNS (linha do cabeçalho + linhas subsequentes indentadas)
+            dns_block_match = re.search(
+                r"(?:Servidores\s+DNS|DNS\s+Servers)[\s.]*:\s*([^\r\n]+(?:\r?\n\s{10,}[^\r\n]+)*)",
+                text_to_search,
+                re.IGNORECASE,
+            )
+            if dns_block_match:
+                block = dns_block_match.group(0)
+                # Extrai endereços IPv4 válidos do bloco
+                ipv4_matches = re.findall(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b", block)
+                valid_ipv4 = [ip for ip in ipv4_matches if ip != "0.0.0.0" and self._is_valid_ipv4(ip)]
+                if valid_ipv4:
+                    return ", ".join(list(dict.fromkeys(valid_ipv4))[:2])
+
+                # Se a rede for puramente IPv6, retorna até 2 servidores IPv6
+                ipv6_matches = re.findall(r"([0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{0,4}){2,7})", block)
+                if ipv6_matches:
+                    return ", ".join(list(dict.fromkeys(ipv6_matches))[:2])
 
         except (subprocess.SubprocessError, OSError):
             pass

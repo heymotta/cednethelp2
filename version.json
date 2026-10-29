@@ -1,14 +1,9 @@
 {
-    "version": "1.10.6",
+    "version": "1.10.7",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.10.6/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.10.7/CedNet_Help.zip",
     "changelog": [
-        "Refinamento completo do modo claro: fundo neutro sem tom azulado",
-        "sidebar quase-branca",
-        "bordas suaves",
-        "azul dos IPs dessaturado",
-        "hierarquia visual aprimorada",
-        "Modo escuro preservado sem alterações"
+        "Correcao na deteccao de servidores DNS quando IPv6 esta ativo na interface"
     ],
-    "sha256": "d5effb5427654cf09e1c77327a5973b61aad43eee1561569af47f14ac9b73b83"
+    "sha256": "f599c38368f57179f40c6224675c8301d55e99b14657a98cd20de3173ca9d91e"
 }
