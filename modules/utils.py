@@ -3,41 +3,42 @@ CedNet Help - Módulo de Utilitários
 Constantes compartilhadas: cores, fontes, dimensões e funções auxiliares.
 """
 
-
-# ============================================================
-# Paleta de Cores — Tema Escuro Profissional
-# ============================================================
+# Paleta de Cores e Tokens Visuais
 COLORS = {
     # Backgrounds
-    "bg_main": "#1a1a2e",           # Fundo principal (azul escuro profundo)
-    "bg_sidebar": "#16213e",         # Fundo da sidebar
-    "bg_card": "#0f3460",            # Cards / Frames
-    "bg_card_alt": "#132a4a",        # Cards alternados
-    "bg_card_hover": "#1a4a7a",      # Cards hover
-    "entry_bg": "#0d2137",           # Campo de entrada
+    "bg_main": "#1a1a2e",
+    "bg_sidebar": "#16213e",
+    "bg_card": "#0f3460",
+    "bg_card_alt": "#132a4a",
+    "bg_card_hover": "#1a4a7a",
+    "entry_bg": "#0d2137",
 
     # Acentos
-    "accent": "#1a73e8",             # Botão ativo / Acento principal
-    "accent_hover": "#2196f3",       # Botão hover
-    "accent_cyan": "#00bcd4",        # Destaque ciano (valores)
+    "accent": "#1a73e8",
+    "accent_hover": "#2196f3",
+    "accent_cyan": "#00bcd4",
 
     # Texto
-    "text_primary": "#ffffff",       # Texto principal (branco)
-    "text_secondary": "#94a3b8",     # Texto secundário (cinza azulado)
+    "text_primary": "#ffffff",
+    "text_secondary": "#94a3b8",
 
-    # Status
-    "status_ok": "#4caf50",          # Verde (conectado)
-    "status_error": "#f44336",       # Vermelho (desconectado)
-    "status_warning": "#ff9800",     # Laranja (alerta)
+    # Status (Acessíveis segundo WCAG AA sobre fundos escuros)
+    "status_ok": "#4ade80",
+    "status_error": "#f87171",
+    "status_warning": "#ff9800",
+
+    # Ações e Alertas
+    "btn_success": "#15803d",
+    "btn_success_hover": "#166534",
+    "bg_error_banner": "#3d1a1a",
+    "border_error_banner": "#dc2626",
+    "text_error_banner": "#fca5a5",
 
     # Bordas
-    "border": "#1e3a5f",             # Bordas sutis
+    "border": "#1e3a5f",
 }
 
-
-# ============================================================
-# Fontes — Segoe UI (nativa Windows) + Consolas (mono)
-# ============================================================
+# Fontes tipográficas
 FONTS = {
     "title": ("Segoe UI", 22, "bold"),
     "subtitle": ("Segoe UI", 16, "bold"),
@@ -50,30 +51,17 @@ FONTS = {
     "mono_bold": ("Consolas", 13, "bold"),
     "mono_large": ("Consolas", 15, "bold"),
     "sidebar_btn": ("Segoe UI", 14),
-
     "sidebar_title": ("Segoe UI", 18, "bold"),
 }
 
-
-# ============================================================
-# Dimensões
-# ============================================================
+# Dimensões da janela
 SIDEBAR_WIDTH = 220
 WINDOW_SIZE = "1050x680"
 WINDOW_MIN_SIZE = (900, 600)
 
-
-# ============================================================
-# Informações do App
-# ============================================================
-APP_VERSION = "1.9.6"
+APP_VERSION = "1.9.7"
 APP_NAME = "CedNet Help"
 
-
-
-# ============================================================
-# Funções Utilitárias
-# ============================================================
 def format_error_message(error: Exception) -> str:
     """Formata uma exceção em mensagem amigável para o usuário."""
     error_map = {

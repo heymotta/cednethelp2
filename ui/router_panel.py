@@ -43,7 +43,7 @@ class RouterPanel(ctk.CTkFrame):
 
         ctk.CTkLabel(
             header,
-            text="📡  Abrir Roteador",
+            text="🔀  Abrir Roteador",
             font=FONTS["title"],
             text_color=COLORS["text_primary"],
             anchor="w",

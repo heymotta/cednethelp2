@@ -181,13 +181,13 @@ class ScannerPanel(ctk.CTkFrame):
         )
         self.lbl_time.pack(side="right")
 
-        # ---- 3. Barra de Pesquisa + Ações Rápidas ----
-        search_bar = ctk.CTkFrame(container, fg_color="transparent")
-        search_bar.pack(fill="x", pady=(0, 8))
+        # Barra de Pesquisa e Ações Rápidas em layout responsivo
+        toolbar = ctk.CTkFrame(container, fg_color="transparent")
+        toolbar.pack(fill="x", pady=(0, 8))
 
         self.search_entry = ctk.CTkEntry(
-            search_bar,
-            placeholder_text="🔍  Pesquisar por IP, MAC, Hostname, Fabricante ou Tipo...",
+            toolbar,
+            placeholder_text="Buscar IP, MAC, Hostname, Fabricante...",
             font=FONTS["body"],
             height=36,
             corner_radius=8,
@@ -195,11 +195,11 @@ class ScannerPanel(ctk.CTkFrame):
             border_color=COLORS["border"],
             text_color=COLORS["text_primary"],
         )
-        self.search_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.search_entry.pack(fill="x", pady=(0, 6))
         self.search_entry.bind("<KeyRelease>", self._on_search)
 
-        self.actions_frame = ctk.CTkFrame(search_bar, fg_color="transparent")
-        self.actions_frame.pack(side="right")
+        self.actions_frame = ctk.CTkFrame(toolbar, fg_color="transparent")
+        self.actions_frame.pack(fill="x")
 
         action_buttons = [
             ("Abrir Web",   self._open_web,     "Abrir Web"),
@@ -215,7 +215,6 @@ class ScannerPanel(ctk.CTkFrame):
                 self.actions_frame,
                 text=text,
                 font=FONTS["small_bold"],
-                width=85,
                 height=34,
                 corner_radius=6,
                 fg_color=COLORS["bg_card"],
@@ -224,7 +223,7 @@ class ScannerPanel(ctk.CTkFrame):
                 command=cmd,
                 state="disabled",
             )
-            btn.pack(side="left", padx=2)
+            btn.pack(side="left", fill="x", expand=True, padx=2)
 
         # ---- 4. Tabela de Resultados (Header + Scroll) ----
         table_header = ctk.CTkFrame(
@@ -692,16 +691,19 @@ class ScannerPanel(ctk.CTkFrame):
                 wraplength=280,
             ).pack(side="left", fill="x", expand=True)
 
-        # Botão Fechar
-        ctk.CTkButton(
+        btn_close = ctk.CTkButton(
             modal,
-            text="Fechar",
+            text="Fechar (Esc)",
             font=FONTS["body_bold"],
             height=38,
             corner_radius=8,
             fg_color=COLORS["accent"],
+            hover_color=COLORS["accent_hover"],
             command=modal.destroy,
-        ).pack(fill="x", padx=15, pady=(0, 15))
+        )
+        btn_close.pack(fill="x", padx=15, pady=(0, 15))
+        modal.bind("<Escape>", lambda e: modal.destroy())
+        btn_close.focus_set()
 
     def _show_toast(self, message: str):
         """Exibe um aviso temporário no rodapé da tabela."""

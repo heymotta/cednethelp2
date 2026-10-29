@@ -1,9 +1,11 @@
 {
-    "version": "1.9.6",
+    "version": "1.9.7",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.6/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.7/CedNet_Help.zip",
     "changelog": [
-        "Scanner Ubiquiti: eliminacao de cache em novas varreduras e correcao no preenchimento automatico da tabela no primeiro scan"
+        "Melhorias de interface",
+        "tokens visuais",
+        "acessibilidade e refinamentos nos paineis"
     ],
-    "sha256": "1c45c0d7d077332ac312aba68cd87be61891e7870b8ceab83d609e4134e2a3b1"
+    "sha256": "403b13e8c47b493b31ad3b315de433ec10d3c9ab073d6a54a49972b46a9ddd57"
 }

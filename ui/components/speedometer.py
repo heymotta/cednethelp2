@@ -80,11 +80,20 @@ class SpeedometerCanvas(tk.Canvas):
         self.target_value = max(0.0, float(val))
         if max_scale > 0:
             self.max_speed = max_scale
+        if not self._anim_running and abs(self.target_value - self.current_value) > 0.05:
+            self._start_animation_loop()
 
     def set_value_instant(self, val: float):
         """Define a velocidade instantaneamente sem interpolação."""
         self.target_value = max(0.0, float(val))
         self.current_value = self.target_value
+        self._anim_running = False
+        if self._after_id:
+            try:
+                self.after_cancel(self._after_id)
+            except Exception:
+                pass
+            self._after_id = None
         self.redraw()
 
     def reset(self):
@@ -93,6 +102,13 @@ class SpeedometerCanvas(tk.Canvas):
         self.current_value = 0.0
         self.mode = "idle"
         self.primary_color = COLORS["accent_cyan"]
+        self._anim_running = False
+        if self._after_id:
+            try:
+                self.after_cancel(self._after_id)
+            except Exception:
+                pass
+            self._after_id = None
         self.redraw()
 
     # ================================================================
@@ -259,6 +275,8 @@ class SpeedometerCanvas(tk.Canvas):
     # ================================================================
 
     def _start_animation_loop(self):
+        if self._anim_running:
+            return
         self._anim_running = True
         self._animate()
 
@@ -267,14 +285,16 @@ class SpeedometerCanvas(tk.Canvas):
             return
 
         diff = self.target_value - self.current_value
-        if abs(diff) > 0.01:
+        if abs(diff) > 0.05:
             self.current_value += diff * 0.22
             self.redraw()
-        elif self.current_value != self.target_value:
-            self.current_value = self.target_value
-            self.redraw()
-
-        self._after_id = self.after(25, self._animate)
+            self._after_id = self.after(25, self._animate)
+        else:
+            if self.current_value != self.target_value:
+                self.current_value = self.target_value
+                self.redraw()
+            self._anim_running = False
+            self._after_id = None
 
     def destroy(self):
         self._anim_running = False

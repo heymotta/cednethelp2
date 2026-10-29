@@ -1,12 +1,6 @@
 """
 CedNet Help - Painel de Análise de Canais Wi-Fi
-Interface profissional (estilo UniFi / Omada / Meraki) para análise de canais Wi-Fi.
-
-Funcionalidades:
-  - Cards de Recomendação Reestruturados (Título, Número em destaque de 28px, Status com ícone, Bullets informativos)
-  - Padding generoso (20px lateral, 18px vertical) e tipografia hierárquica clara
-  - Tabela responsiva de 5 colunas com alinhamento impecável e 100% de altura vertical
-  - Busca em tempo real e varredura sob demanda com resiliência total
+Varredura de redes sem fio próximas, identificação de canais e recomendações.
 """
 
 import customtkinter as ctk
@@ -16,9 +10,8 @@ from modules.wifi_scanner import WiFiScanner
 from modules.utils import COLORS, FONTS
 
 
-# Especificações de alinhamento e peso das 5 colunas essenciais
+# Especificações de alinhamento e peso das colunas
 COL_SPECS = [
-    # (Título, Peso, Anchor, Sticky)
     ("SSID (Nome da Rede)", 40, "w", "w"),
     ("BSSID (MAC AP)", 24, "center", "ew"),
     ("Banda", 12, "center", "ew"),
@@ -28,7 +21,7 @@ COL_SPECS = [
 
 
 class WiFiPanel(ctk.CTkFrame):
-    """Painel de Análise de Canais Wi-Fi com Design Corporativo de Alta Fidelidade Visual."""
+    """Painel de Análise de Canais Wi-Fi."""
 
     def __init__(self, parent):
         super().__init__(parent, fg_color="transparent")
@@ -42,64 +35,55 @@ class WiFiPanel(ctk.CTkFrame):
 
         self._create_ui()
 
-    # ================================================================
-    # Construção da UI Responsiva
-    # ================================================================
-
     def _create_ui(self):
-        """Monta a interface com excelente hierarquia tipográfica e aproveitamento de tela."""
-        
-        # ---- 1. Seção Superior (Cabeçalho + Alertas + Recomendações + Busca) ----
         top_container = ctk.CTkFrame(self, fg_color="transparent")
         top_container.pack(fill="x", padx=6, pady=(6, 0))
 
-        # Cabeçalho da Página (22px Bold) + Botão Escanear Modernizado (40px)
         header = ctk.CTkFrame(top_container, fg_color="transparent")
         header.pack(fill="x", pady=(0, 12))
 
         ctk.CTkLabel(
             header,
-            text="📡  Análise de Canais Wi-Fi",
-            font=("Segoe UI", 22, "bold"),
+            text="📶  Análise de Canais Wi-Fi",
+            font=FONTS["title"],
             text_color=COLORS["text_primary"],
             anchor="w",
         ).pack(side="left")
 
         self.btn_refresh = ctk.CTkButton(
             header,
-            text="🚀  Escanear Redes Wi-Fi",
-            font=("Segoe UI", 13, "bold"),
-            width=220,
+            text="Escanear Redes Wi-Fi",
+            font=FONTS["body_bold"],
+            width=200,
             height=40,
-            corner_radius=10,
+            corner_radius=8,
             fg_color=COLORS["accent"],
             hover_color=COLORS["accent_hover"],
             command=self._on_btn_click,
         )
         self.btn_refresh.pack(side="right")
 
-        # Card de Erro / Aviso (Escondido por padrão)
         self.error_card = ctk.CTkFrame(
             top_container,
-            fg_color="#3d1a1a",
+            fg_color=COLORS["bg_error_banner"],
             corner_radius=12,
             border_width=1,
-            border_color=COLORS["status_error"],
+            border_color=COLORS["border_error_banner"],
         )
 
         err_inner = ctk.CTkFrame(self.error_card, fg_color="transparent")
         err_inner.pack(fill="x", padx=20, pady=16)
 
         self.lbl_error_icon = ctk.CTkLabel(
-            err_inner, text="⚠️", font=("Segoe UI", 22)
+            err_inner, text="⚠️", font=FONTS["title"],
         )
         self.lbl_error_icon.pack(side="left", padx=(0, 10))
 
         self.lbl_error_msg = ctk.CTkLabel(
             err_inner,
             text="",
-            font=("Segoe UI", 13),
-            text_color=COLORS["status_error"],
+            font=FONTS["body"],
+            text_color=COLORS["text_error_banner"],
             anchor="w",
             justify="left",
             wraplength=650,

@@ -51,7 +51,7 @@ class DNSPanel(ctk.CTkFrame):
 
         ctk.CTkLabel(
             header,
-            text="⚡  Teste de Desempenho de DNS",
+            text="⏱️  Teste de Desempenho de DNS",
             font=FONTS["title"],
             text_color=COLORS["text_primary"],
             anchor="w",

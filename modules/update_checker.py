@@ -15,6 +15,7 @@ import os
 import sys
 import subprocess
 import threading
+import time
 import urllib.request
 import urllib.error
 import ssl
@@ -68,17 +69,16 @@ def compare_versions(local: str, remote: str) -> int:
         return 0
 
 
-import time
-
 def fetch_remote_version(timeout: float = 5.0) -> Optional[dict]:
     """
     Consulta o version.json remoto e retorna os dados como dicionário.
     Retorna None em caso de falha (sem internet, timeout, URL inválida).
     """
     try:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        try:
+            ctx = ssl.create_default_context()
+        except Exception:
+            ctx = ssl._create_unverified_context()
 
         cache_busting_url = f"{VERSION_URL}?t={int(time.time())}"
         req = urllib.request.Request(

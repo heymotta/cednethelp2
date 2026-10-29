@@ -1,7 +1,6 @@
 """
-CedNet Help - Painel de Informações de Rede (Centralizado)
-Exibe informações de rede (IPv4, Gateway, Máscara, DNS, Interface, Status, Velocidade)
-com atualização em tempo real sincronizada via NetworkManager.
+CedNet Help - Painel de Informações de Rede
+Exibe informações de rede sincronizadas em tempo real via NetworkManager.
 """
 
 import customtkinter as ctk
@@ -10,12 +9,8 @@ from modules.utils import COLORS, FONTS
 
 
 class NetworkPanel(ctk.CTkFrame):
-    """
-    Painel de Informações de Rede.
-    Sincronizado automaticamente em tempo real com o NetworkManager.
-    """
+    """Painel de Informações de Rede sincronizado em tempo real."""
 
-    # Frequência de verificação da versão do estado da UI em milissegundos
     UI_POLL_INTERVAL_MS = 300
 
     def __init__(self, parent):
@@ -27,12 +22,7 @@ class NetworkPanel(ctk.CTkFrame):
         self._create_ui()
         self._start_sync()
 
-    # ================================================================
-    # Construção da UI
-    # ================================================================
-
     def _create_ui(self):
-        """Monta toda a interface do painel de rede."""
         container = ctk.CTkScrollableFrame(
             self,
             fg_color="transparent",
@@ -40,7 +30,6 @@ class NetworkPanel(ctk.CTkFrame):
         )
         container.pack(fill="both", expand=True, padx=5, pady=5)
 
-        # ---- Cabeçalho com título + botão atualizar ----
         header = ctk.CTkFrame(container, fg_color="transparent")
         header.pack(fill="x", pady=(0, 15))
 
@@ -65,7 +54,6 @@ class NetworkPanel(ctk.CTkFrame):
         )
         self.btn_refresh.pack(side="right")
 
-        # ---- Card de Status (destaque principal) ----
         self.status_card = ctk.CTkFrame(
             container,
             fg_color=COLORS["bg_card"],
@@ -79,7 +67,7 @@ class NetworkPanel(ctk.CTkFrame):
         self.status_emoji = ctk.CTkLabel(
             status_inner,
             text="⚪",
-            font=("Segoe UI", 28),
+            font=("Segoe UI", 24),
         )
         self.status_emoji.pack(side="left", padx=(0, 12))
 
@@ -104,18 +92,17 @@ class NetworkPanel(ctk.CTkFrame):
         )
         self.status_detail.pack(anchor="w")
 
-        # ---- Grid de cards com informações ----
         info_grid = ctk.CTkFrame(container, fg_color="transparent")
         info_grid.pack(fill="x", pady=(0, 10))
         info_grid.columnconfigure((0, 1), weight=1)
 
         fields = [
-            ("ipv4",      "Endereço IPv4",      "💻", 0, 0),
-            ("gateway",   "Gateway Padrão",     "🚪", 0, 1),
-            ("mask",      "Máscara de Rede",    "🎭", 1, 0),
-            ("dns",       "Servidores DNS",     "📋", 1, 1),
-            ("interface", "Interface de Rede",  "🔌", 2, 0),
-            ("speed",     "Velocidade",         "⚡", 2, 1),
+            ("ipv4",      "Endereço IPv4",         "🌐", 0, 0),
+            ("gateway",   "Gateway Padrão",        "🔀", 0, 1),
+            ("mask",      "Máscara de Sub-rede",   "🔢", 1, 0),
+            ("dns",       "Servidores DNS",        "📋", 1, 1),
+            ("interface", "Interface de Rede",     "💻", 2, 0),
+            ("speed",     "Velocidade de Link",    "⚡", 2, 1),
         ]
 
         for key, label, icon, row, col in fields:
@@ -123,7 +110,6 @@ class NetworkPanel(ctk.CTkFrame):
             card.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
 
     def _create_info_card(self, parent, key: str, label: str, icon: str) -> ctk.CTkFrame:
-        """Cria um card individual de informação de rede."""
         card = ctk.CTkFrame(
             parent,
             fg_color=COLORS["bg_card"],
@@ -153,73 +139,73 @@ class NetworkPanel(ctk.CTkFrame):
         self._info_labels[key] = value_label
         return card
 
-    # ================================================================
-    # Sincronização em Tempo Real (via NetworkManager)
-    # ================================================================
-
     def _start_sync(self):
-        """Inicia a sincronização automatizada com o NetworkManager."""
-        self._check_network_manager()
+        self._sync_with_manager()
 
-    def _check_network_manager(self):
-        """
-        Polling thread-safe na thread principal (GUI).
-        Compara a versão do NetworkManager com a última versão renderizada.
-        Se houve alteração de estado, atualiza TODOS os campos da interface.
-        """
-        current_version = network_manager.version
+    def _sync_with_manager(self):
+        current_version = network_manager.state_version
 
         if current_version != self._last_seen_version:
             self._last_seen_version = current_version
-            self._render_state(network_manager.get_state())
+            state = network_manager.get_state()
+            self._apply_state(state)
 
-        # Agenda a próxima verificação na GUI thread
-        self._after_id = self.after(self.UI_POLL_INTERVAL_MS, self._check_network_manager)
+        self._after_id = self.after(self.UI_POLL_INTERVAL_MS, self._sync_with_manager)
 
-    def _render_state(self, state: dict):
-        """Atualiza todos os widgets visuais com o estado atual da rede."""
-        # Atualiza cards de valores (IPv4, Gateway, Máscara, DNS, Interface, Speed)
-        for key in ("ipv4", "gateway", "mask", "dns", "interface", "speed"):
-            if key in self._info_labels:
-                val = state.get(key, "")
-                if not val or val == "Não disponível":
-                    val = "Não disponível"
-                self._info_labels[key].configure(
-                    text=str(val),
-                    text_color=COLORS["accent_cyan"],
-                )
-
-        # Atualiza card de status principal
+    def _apply_state(self, state: dict):
         status = state.get("status", {})
         connected = status.get("connected", False)
-        label = status.get("label", "Desconhecido")
-        emoji = status.get("emoji", "⚪")
-
-        self.status_emoji.configure(text=emoji)
-        self.status_label.configure(
-            text=label,
-            text_color=COLORS["status_ok"] if connected else COLORS["status_error"],
-        )
 
         if connected:
-            self.status_detail.configure(text="Conexão ativa e funcionando")
-            self.status_card.configure(
-                border_width=2,
-                border_color=COLORS["status_ok"],
+            self.status_emoji.configure(text="🟢")
+            self.status_label.configure(
+                text="Conectado à Internet",
+                text_color=COLORS["status_ok"],
+            )
+            self.status_detail.configure(
+                text="Conexão com a internet ativa e funcional",
+                text_color=COLORS["text_secondary"],
             )
         else:
-            self.status_detail.configure(text="Verifique o cabo ou adaptador de rede")
-            self.status_card.configure(
-                border_width=2,
-                border_color=COLORS["status_error"],
+            self.status_emoji.configure(text="🔴")
+            self.status_label.configure(
+                text="Sem Conexão com a Internet",
+                text_color=COLORS["status_error"],
+            )
+            self.status_detail.configure(
+                text="Verifique os cabos ou consulte o provedor",
+                text_color=COLORS["text_secondary"],
             )
 
+        details = state.get("details", {})
+        dns_servers = details.get("dns", [])
+        dns_str = ", ".join(dns_servers) if dns_servers else "Nenhum"
+
+        field_values = {
+            "ipv4": details.get("ipv4", "Não disponível"),
+            "gateway": details.get("gateway", "Não disponível"),
+            "mask": details.get("mask", "Não disponível"),
+            "dns": dns_str,
+            "interface": details.get("interface", "Não disponível"),
+            "speed": details.get("speed", "Não disponível"),
+        }
+
+        for key, val in field_values.items():
+            if key in self._info_labels:
+                self._info_labels[key].configure(text=str(val))
+
     def _on_manual_refresh(self):
-        """Callback do botão de atualização manual."""
-        network_manager.force_refresh()
+        self.btn_refresh.configure(state="disabled", text="Atualizando...")
+        network_manager.request_immediate_poll()
+        self.after(600, self._restore_refresh_button)
+
+    def _restore_refresh_button(self):
+        self.btn_refresh.configure(state="normal", text="Atualizar Informações")
 
     def stop_monitoring(self):
-        """Cancela o agendamento do polling da GUI."""
         if self._after_id:
-            self.after_cancel(self._after_id)
+            try:
+                self.after_cancel(self._after_id)
+            except Exception:
+                pass
             self._after_id = None

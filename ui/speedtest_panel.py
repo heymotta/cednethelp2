@@ -89,9 +89,9 @@ class SpeedTestPanel(ctk.CTkFrame):
 
         self.btn_demo = ctk.CTkButton(
             right_hdr,
-            text="🎭 Demo",
+            text="Modo Demo",
             font=FONTS["small_bold"],
-            width=70,
+            width=90,
             height=26,
             corner_radius=6,
             fg_color=COLORS["bg_sidebar"],
@@ -424,7 +424,7 @@ class SpeedTestPanel(ctk.CTkFrame):
 
         ctk.CTkLabel(
             modal,
-            text="🎭  Configurar Modo Demonstração",
+            text="Configurar Modo Demonstração",
             font=FONTS["subtitle"],
             text_color=COLORS["text_primary"],
         ).pack(pady=(18, 5))
@@ -511,17 +511,23 @@ class SpeedTestPanel(ctk.CTkFrame):
         btn_row = ctk.CTkFrame(modal, fg_color="transparent")
         btn_row.pack(fill="x", padx=20)
 
-        ctk.CTkButton(
-            btn_row, text="Cancelar", font=FONTS["body"],
+        btn_cancel = ctk.CTkButton(
+            btn_row, text="Cancelar (Esc)", font=FONTS["body"],
             height=38, corner_radius=8, fg_color=COLORS["bg_card"],
             hover_color=COLORS["bg_card_hover"], command=modal.destroy
-        ).pack(side="left", fill="x", expand=True, padx=(0, 5))
+        )
+        btn_cancel.pack(side="left", fill="x", expand=True, padx=(0, 5))
 
-        ctk.CTkButton(
-            btn_row, text="Iniciar", font=FONTS["body_bold"],
+        btn_start = ctk.CTkButton(
+            btn_row, text="Iniciar (Enter)", font=FONTS["body_bold"],
             height=38, corner_radius=8, fg_color=COLORS["accent"],
             hover_color=COLORS["accent_hover"], command=start_demo
-        ).pack(side="right", fill="x", expand=True, padx=(5, 0))
+        )
+        btn_start.pack(side="right", fill="x", expand=True, padx=(5, 0))
+
+        modal.bind("<Escape>", lambda e: modal.destroy())
+        modal.bind("<Return>", lambda e: start_demo())
+        btn_start.focus_set()
 
     def _start_demo_test(self, demo_params: dict):
         if self.runner.is_running():

@@ -69,14 +69,13 @@ class IPConfigPanel(ctk.CTkFrame):
             anchor="w",
         ).pack(side="left")
 
-        # ---- Aviso de admin (se não for administrador) ----
         if not is_admin():
             admin_frame = ctk.CTkFrame(
                 container,
-                fg_color="#3d1a1a",
+                fg_color=COLORS["bg_error_banner"],
                 corner_radius=10,
                 border_width=1,
-                border_color=COLORS["status_error"],
+                border_color=COLORS["border_error_banner"],
             )
             admin_frame.pack(fill="x", pady=(0, 12))
 
@@ -85,7 +84,7 @@ class IPConfigPanel(ctk.CTkFrame):
                 text="⚠️  Execute como Administrador para alterar configurações de rede.\n"
                      "     Clique direito no programa → Executar como administrador.",
                 font=FONTS["small"],
-                text_color=COLORS["status_error"],
+                text_color=COLORS["text_error_banner"],
                 anchor="w",
                 justify="left",
                 wraplength=650,

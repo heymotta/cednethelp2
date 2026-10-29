@@ -13,41 +13,9 @@ from tkinter import ttk
 import customtkinter as ctk
 
 from modules.utils import COLORS, FONTS
+from modules.ip_config import is_admin, set_static_ip
 from scanner.discovery import UbiquitiDiscovery
 from scanner.models import NetworkInterface, UbiquitiDevice
-
-
-def _is_admin() -> bool:
-    """Verifica se o processo está sendo executado como Administrador."""
-    try:
-        return ctypes.windll.shell32.IsUserAnAdmin() != 0
-    except Exception:
-        return False
-
-
-def _set_static_ip(interface_name: str, ip: str, mask: str) -> tuple[bool, str]:
-    """Altera o IP da interface de rede via netsh (requer privilégios de admin)."""
-    try:
-        cmd = (
-            f'netsh interface ip set address name="{interface_name}" '
-            f'static {ip} {mask}'
-        )
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            encoding="cp850",
-            errors="replace",
-            creationflags=subprocess.CREATE_NO_WINDOW,
-            timeout=15,
-        )
-        if result.returncode == 0:
-            return True, ""
-        return False, result.stderr.strip() or result.stdout.strip() or "Erro desconhecido"
-    except subprocess.TimeoutExpired:
-        return False, "Tempo esgotado ao alterar o IP da interface."
-    except Exception as exc:
-        return False, str(exc)
 
 
 def _compute_tech_ip(device_ip: str, suffix: int = 245) -> str:
@@ -611,7 +579,7 @@ class UbiquitiScannerPage(ctk.CTkFrame):
             return
 
         # Verificar permissões de administrador
-        if not _is_admin():
+        if not is_admin():
             self._show_toast(
                 "⚠  Permissão necessária!\n"
                 "Execute o CedNet Help como Administrador\n"
@@ -688,7 +656,7 @@ class UbiquitiScannerPage(ctk.CTkFrame):
 
         def _worker():
             mask = "255.255.255.0"
-            success, error_msg = _set_static_ip(interface.name, tech_ip, mask)
+            success, error_msg = set_static_ip(interface.name, tech_ip, mask)
 
             if success:
                 # Aguardar tempo inicial para o Windows iniciar a aplicação
