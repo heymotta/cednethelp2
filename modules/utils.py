@@ -59,7 +59,7 @@ SIDEBAR_WIDTH = 220
 WINDOW_SIZE = "1050x680"
 WINDOW_MIN_SIZE = (900, 600)
 
-APP_VERSION = "1.9.8"
+APP_VERSION = "1.9.9"
 APP_NAME = "CedNet Help"
 
 def format_error_message(error: Exception) -> str:

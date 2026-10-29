@@ -177,26 +177,42 @@ class NetworkPanel(ctk.CTkFrame):
                 text_color=COLORS["text_secondary"],
             )
 
+        # Os dados do NetworkManager ficam na raiz do dicionário state
         details = state.get("details", {})
-        dns_servers = details.get("dns", [])
-        dns_str = ", ".join(dns_servers) if dns_servers else "Nenhum"
+        
+        # Obtém os valores com fallback tanto direto da raiz quanto de details
+        ipv4_val = state.get("ipv4") or details.get("ipv4") or "Não disponível"
+        gateway_val = state.get("gateway") or details.get("gateway") or "Não disponível"
+        mask_val = state.get("mask") or details.get("mask") or "Não disponível"
+        interface_val = state.get("interface") or details.get("interface") or "Não disponível"
+        speed_val = state.get("speed") or details.get("speed") or "Não disponível"
+        
+        # DNS pode vir como string ou lista
+        dns_raw = state.get("dns") or details.get("dns")
+        if isinstance(dns_raw, list):
+            dns_str = ", ".join(dns_raw) if dns_raw else "Nenhum"
+        elif dns_raw:
+            dns_str = str(dns_raw)
+        else:
+            dns_str = "Nenhum"
 
         field_values = {
-            "ipv4": details.get("ipv4", "Não disponível"),
-            "gateway": details.get("gateway", "Não disponível"),
-            "mask": details.get("mask", "Não disponível"),
+            "ipv4": ipv4_val,
+            "gateway": gateway_val,
+            "mask": mask_val,
             "dns": dns_str,
-            "interface": details.get("interface", "Não disponível"),
-            "speed": details.get("speed", "Não disponível"),
+            "interface": interface_val,
+            "speed": speed_val,
         }
 
         for key, val in field_values.items():
             if key in self._info_labels:
-                self._info_labels[key].configure(text=str(val))
+                display_text = str(val) if val else "Não disponível"
+                self._info_labels[key].configure(text=display_text)
 
     def _on_manual_refresh(self):
         self.btn_refresh.configure(state="disabled", text="Atualizando...")
-        network_manager.request_immediate_poll()
+        network_manager.force_refresh()
         self.after(600, self._restore_refresh_button)
 
     def _restore_refresh_button(self):

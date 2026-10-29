@@ -1,9 +1,9 @@
 {
-    "version": "1.9.8",
+    "version": "1.9.9",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.8/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.9/CedNet_Help.zip",
     "changelog": [
-        "Correcao do erro AttributeError state_version no NetworkPanel"
+        "Correcao da exibicao dos dados de rede no NetworkPanel"
     ],
-    "sha256": "08a656ad590df970daa8c72f77536cbd4acb473fb791841dc37352439b0fb6d9"
+    "sha256": "a962ec2c35aebb4f58b2389f9f15eb7fda4bf0d83bbad3e6f5ad6a24ea29f4d5"
 }
