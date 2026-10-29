@@ -1,9 +1,9 @@
 {
-    "version": "1.10.4",
+    "version": "1.10.5",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.10.4/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.10.5/CedNet_Help.zip",
     "changelog": [
-        "Centralizacao automatica da janela do aplicativo ao iniciar"
+        "Padronizacao visual Hallmark com tokens centralizados de cores e indicadores graficos em CTkImage"
     ],
-    "sha256": "938f2bac3a12d6d5e371dfbd8e95d891843036e60eb9b0d91d90ee7a44dd907b"
+    "sha256": "85833710d65318ad0df342b59d5ed18a15c6184b2ad1cbe20ef9333e373e0328"
 }

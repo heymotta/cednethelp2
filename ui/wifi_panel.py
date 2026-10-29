@@ -308,8 +308,8 @@ class WiFiPanel(ctk.CTkFrame):
 
         self.btn_refresh.configure(
             text="🛑 Cancelar Scan",
-            fg_color=COLORS["status_error"],
-            hover_color="#c62828",
+            fg_color=COLORS["btn_danger"],
+            hover_color=COLORS["btn_danger_hover"],
             state="normal",
         )
         self.error_card.pack_forget()

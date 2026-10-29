@@ -37,6 +37,21 @@ COLORS = {
 
     # Bordas
     "border": ("#cbd5e1", "#1e3a5f"),
+
+    # Tokens Semânticos Adicionais (Hallmark / Anti-Slop Audit)
+    "gold_trophy": ("#d97706", "#ffd700"),
+    "btn_danger": ("#dc2626", "#dc2626"),
+    "btn_danger_hover": ("#b91c1c", "#c62828"),
+    "badge_success_bg": ("#dcfce7", "#1b5e20"),
+    "badge_success_text": ("#166534", "#81c784"),
+}
+
+# Escala Padronizada de Raios de Canto (Hallmark Tokens)
+RADIUS = {
+    "none": 0,
+    "sm": 6,      # Badges, tags, pequenos botões e células
+    "md": 8,      # Botões primários, campos de entrada (entry)
+    "lg": 12,     # Cards de conteúdo e caixas modais
 }
 
 # Fontes tipográficas
@@ -60,7 +75,7 @@ SIDEBAR_WIDTH = 220
 WINDOW_SIZE = "1050x680"
 WINDOW_MIN_SIZE = (900, 600)
 
-APP_VERSION = "1.10.4"
+APP_VERSION = "1.10.5"
 APP_NAME = "CedNet Help"
 
 def format_error_message(error: Exception) -> str:

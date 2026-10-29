@@ -177,12 +177,12 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         self.interface_combo.pack(side="left", padx=(0, 8))
         self.scan_button = ctk.CTkButton(controls, text="Escanear", width=105, command=self._start_scan)
         self.scan_button.pack(side="left", padx=3)
-        self.stop_button = ctk.CTkButton(controls, text="Parar", width=90, fg_color=COLORS["status_error"], hover_color="#c62828", command=self._stop_scan, state="disabled")
+        self.stop_button = ctk.CTkButton(controls, text="Parar", width=90, fg_color=COLORS["btn_danger"], hover_color=COLORS["btn_danger_hover"], command=self._stop_scan, state="disabled")
         self.stop_button.pack(side="left", padx=3)
         ctk.CTkButton(controls, text="Atualizar", width=105, fg_color=COLORS["bg_card_alt"], hover_color=COLORS["bg_card_hover"], command=self._refresh_and_scan).pack(side="left", padx=3)
 
         # ── Card do equipamento conectado (inicialmente oculto) ──
-        self.connected_card = ctk.CTkFrame(container, fg_color="#0d3b66", corner_radius=10, border_width=1, border_color="#1a73e8")
+        self.connected_card = ctk.CTkFrame(container, fg_color=COLORS["entry_bg"], corner_radius=10, border_width=1, border_color=COLORS["accent"])
         # NÃO empacotar ainda — será mostrado apenas quando houver detecção
 
         self.connected_card_inner = ctk.CTkFrame(self.connected_card, fg_color="transparent")
@@ -193,7 +193,7 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         self.cc_header.pack(fill="x")
 
         ctk.CTkLabel(
-            self.cc_header, text="⭐", font=("Segoe UI", 20),
+            self.cc_header, text="★", font=("Segoe UI", 18, "bold"), text_color=COLORS["accent_cyan"],
         ).pack(side="left", padx=(0, 8))
 
         self.cc_title_block = ctk.CTkFrame(self.cc_header, fg_color="transparent")
@@ -201,7 +201,7 @@ class UbiquitiScannerPage(ctk.CTkFrame):
 
         self.cc_label_title = ctk.CTkLabel(
             self.cc_title_block, text="Equipamento Conectado",
-            font=("Segoe UI", 11, "bold"), text_color="#4caf50", anchor="w",
+            font=("Segoe UI", 11, "bold"), text_color=COLORS["status_ok"], anchor="w",
         )
         self.cc_label_title.pack(anchor="w")
 
@@ -320,9 +320,9 @@ class UbiquitiScannerPage(ctk.CTkFrame):
             foreground=[("selected", text_primary)],
         )
 
-        # Atualiza as tags
-        connected_bg = "#bae6fd" if mode == "light" else "#0d3b66"
-        connected_fg = "#0369a1" if mode == "light" else "#ffffff"
+        # Atualiza as tags usando os tokens centralizados de COLORS
+        connected_bg = COLORS["entry_bg"][0] if mode == "light" else COLORS["entry_bg"][1]
+        connected_fg = COLORS["accent_cyan"][0] if mode == "light" else COLORS["accent_cyan"][1]
         self.tree.tag_configure("connected", background=connected_bg, foreground=connected_fg, font=("Segoe UI", 10, "bold"))
         self.tree.tag_configure("normal", background=bg_card, foreground=text_primary)
 

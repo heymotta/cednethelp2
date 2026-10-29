@@ -5,7 +5,8 @@ Exibe informações de rede sincronizadas em tempo real via NetworkManager.
 
 import customtkinter as ctk
 from modules.network_manager import network_manager
-from modules.utils import COLORS, FONTS
+from modules.utils import COLORS, FONTS, RADIUS
+from ui.components.icons import get_status_indicator_image
 
 
 class NetworkPanel(ctk.CTkFrame):
@@ -65,12 +66,12 @@ class NetworkPanel(ctk.CTkFrame):
         status_inner = ctk.CTkFrame(self.status_card, fg_color="transparent")
         status_inner.pack(fill="x", padx=20, pady=15)
 
-        self.status_emoji = ctk.CTkLabel(
+        self.status_icon = ctk.CTkLabel(
             status_inner,
-            text="⚪",
-            font=("Segoe UI", 24),
+            text="",
+            image=get_status_indicator_image("idle", size=(22, 22)),
         )
-        self.status_emoji.pack(side="left", padx=(0, 12))
+        self.status_icon.pack(side="left", padx=(0, 14))
 
         status_text_frame = ctk.CTkFrame(status_inner, fg_color="transparent")
         status_text_frame.pack(side="left", fill="x", expand=True)
@@ -159,7 +160,7 @@ class NetworkPanel(ctk.CTkFrame):
         connected = status.get("connected", False)
 
         if connected:
-            self.status_emoji.configure(text="🟢")
+            self.status_icon.configure(image=get_status_indicator_image("ok", size=(22, 22)))
             self.status_label.configure(
                 text="Conectado à Internet",
                 text_color=COLORS["status_ok"],
@@ -173,7 +174,7 @@ class NetworkPanel(ctk.CTkFrame):
                 border_color=COLORS["status_ok"],
             )
         else:
-            self.status_emoji.configure(text="🔴")
+            self.status_icon.configure(image=get_status_indicator_image("error", size=(22, 22)))
             self.status_label.configure(
                 text="Sem Conexão com a Internet",
                 text_color=COLORS["status_error"],

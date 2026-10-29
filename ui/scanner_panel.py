@@ -340,8 +340,8 @@ class ScannerPanel(ctk.CTkFrame):
 
         self.btn_scan.configure(
             text="Parar Scan",
-            fg_color=COLORS["status_error"],
-            hover_color="#c62828",
+            fg_color=COLORS["btn_danger"],
+            hover_color=COLORS["btn_danger_hover"],
         )
         self.progress_bar.set(0.0)
         self.lbl_count.configure(text="Dispositivos: 0")
@@ -547,7 +547,14 @@ class ScannerPanel(ctk.CTkFrame):
 
     def _show_context_menu(self, event, device: dict):
         """Exibe o menu de contexto no ponto do clique."""
-        menu = tk.Menu(self, tearoff=0, bg="#16213e", fg="#ffffff", activebackground="#1a73e8", activeforeground="#ffffff")
+        menu = tk.Menu(
+            self,
+            tearoff=0,
+            bg=COLORS["bg_sidebar"][1],
+            fg=COLORS["text_primary"][1],
+            activebackground=COLORS["accent"][1],
+            activeforeground=COLORS["text_primary"][1],
+        )
 
         if device.get("has_web"):
             menu.add_command(label=f"🌐 Abrir Web ({device.get('web_url')})", command=self._open_web)

@@ -235,7 +235,7 @@ class SpeedTestPanel(ctk.CTkFrame):
         c_dl.grid(row=0, column=0, padx=4, pady=4, sticky="nsew")
         cdl_i = ctk.CTkFrame(c_dl, fg_color="transparent")
         cdl_i.pack(fill="both", expand=True, padx=14, pady=12)
-        ctk.CTkLabel(cdl_i, text="🚀  DOWNLOAD", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
+        ctk.CTkLabel(cdl_i, text="Download", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
         self.lbl_dl_val = ctk.CTkLabel(cdl_i, text="0.0 Mbps", font=("Consolas", 22, "bold"), text_color=COLORS["accent_cyan"], anchor="w")
         self.lbl_dl_val.pack(anchor="w", pady=(2, 0))
         self.lbl_dl_peak = ctk.CTkLabel(cdl_i, text="Pico: 0.0 Mbps", font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w")
@@ -246,7 +246,7 @@ class SpeedTestPanel(ctk.CTkFrame):
         c_ul.grid(row=0, column=1, padx=4, pady=4, sticky="nsew")
         cul_i = ctk.CTkFrame(c_ul, fg_color="transparent")
         cul_i.pack(fill="both", expand=True, padx=14, pady=12)
-        ctk.CTkLabel(cul_i, text="📤  UPLOAD", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
+        ctk.CTkLabel(cul_i, text="Upload", font=FONTS["small_bold"], text_color=COLORS["text_secondary"], anchor="w").pack(anchor="w")
         self.lbl_ul_val = ctk.CTkLabel(cul_i, text="0.0 Mbps", font=("Consolas", 22, "bold"), text_color=COLORS["status_ok"], anchor="w")
         self.lbl_ul_val.pack(anchor="w", pady=(2, 0))
         self.lbl_ul_peak = ctk.CTkLabel(cul_i, text="Pico: 0.0 Mbps", font=FONTS["small"], text_color=COLORS["text_secondary"], anchor="w")
@@ -535,8 +535,8 @@ class SpeedTestPanel(ctk.CTkFrame):
 
         self.btn_action.configure(
             text="🛑 Cancelar",
-            fg_color=COLORS["status_error"],
-            hover_color="#c62828"
+            fg_color=COLORS["btn_danger"],
+            hover_color=COLORS["btn_danger_hover"],
         )
         self.btn_copy.configure(state="disabled")
         self.btn_csv.configure(state="disabled")
@@ -627,8 +627,8 @@ class SpeedTestPanel(ctk.CTkFrame):
         # UI Estado Rodando
         self.btn_action.configure(
             text="🛑 Cancelar Teste",
-            fg_color=COLORS["status_error"],
-            hover_color="#c62828"
+            fg_color=COLORS["btn_danger"],
+            hover_color=COLORS["btn_danger_hover"],
         )
         self.btn_copy.configure(state="disabled")
         self.btn_csv.configure(state="disabled")

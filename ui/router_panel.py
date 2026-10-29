@@ -8,7 +8,8 @@ import threading
 import customtkinter as ctk
 from modules.router import open_router_page, find_optimal_mtu
 from modules.network_manager import network_manager
-from modules.utils import COLORS, FONTS
+from modules.utils import COLORS, FONTS, RADIUS
+from ui.components.icons import get_status_indicator_image
 
 
 class RouterPanel(ctk.CTkFrame):
@@ -90,12 +91,12 @@ class RouterPanel(ctk.CTkFrame):
         status_inner = ctk.CTkFrame(self.status_card, fg_color="transparent")
         status_inner.pack(fill="x", padx=20, pady=15)
 
-        self.status_emoji = ctk.CTkLabel(
+        self.status_icon = ctk.CTkLabel(
             status_inner,
-            text="⏳",
-            font=("Segoe UI", 28),
+            text="",
+            image=get_status_indicator_image("idle", size=(22, 22)),
         )
-        self.status_emoji.pack(side="left", padx=(0, 12))
+        self.status_icon.pack(side="left", padx=(0, 14))
 
         status_text_frame = ctk.CTkFrame(status_inner, fg_color="transparent")
         status_text_frame.pack(side="left", fill="x", expand=True)
@@ -238,8 +239,8 @@ class RouterPanel(ctk.CTkFrame):
         self._update_log(log_text)
 
         if has_gateway:
-            # 🟢 Gateway encontrado
-            self.status_emoji.configure(text="🟢")
+            # Gateway encontrado
+            self.status_icon.configure(image=get_status_indicator_image("ok", size=(22, 22)))
             self.status_label.configure(
                 text="Gateway Detectado",
                 text_color=COLORS["status_ok"],
@@ -252,8 +253,8 @@ class RouterPanel(ctk.CTkFrame):
             )
             self.btn_open.configure(state="normal")
         else:
-            # 🔴 Gateway não encontrado
-            self.status_emoji.configure(text="🔴")
+            # Gateway não encontrado
+            self.status_icon.configure(image=get_status_indicator_image("error", size=(22, 22)))
             self.status_label.configure(
                 text="Nenhum roteador detectado.",
                 text_color=COLORS["status_error"],

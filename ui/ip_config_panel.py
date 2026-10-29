@@ -244,8 +244,8 @@ class IPConfigPanel(ctk.CTkFrame):
             font=FONTS["body_bold"],
             height=48,
             corner_radius=10,
-            fg_color="#1b5e20",
-            hover_color="#2e7d32",
+            fg_color=COLORS["btn_success"],
+            hover_color=COLORS["btn_success_hover"],
             command=self._confirm_restore_dhcp,
         )
         self.btn_dhcp.pack(fill="x")
@@ -555,8 +555,8 @@ class IPConfigPanel(ctk.CTkFrame):
             font=FONTS["body_bold"],
             height=38,
             corner_radius=8,
-            fg_color="#1b5e20",
-            hover_color="#2e7d32",
+            fg_color=COLORS["btn_success"],
+            hover_color=COLORS["btn_success_hover"],
             command=lambda: self._do_restore_dhcp(dialog),
         ).grid(row=0, column=1, padx=(5, 0), sticky="ew")
 

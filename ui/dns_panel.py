@@ -216,13 +216,13 @@ class DNSPanel(ctk.CTkFrame):
                 anchor="w",
             ).pack(side="left")
 
-            badge = ctk.CTkFrame(top_line, fg_color="#1b5e20", corner_radius=6)
+            badge = ctk.CTkFrame(top_line, fg_color=COLORS["badge_success_bg"], corner_radius=6)
             badge.pack(side="right")
             ctk.CTkLabel(
                 badge,
                 text="Recomendado",
                 font=FONTS["small_bold"],
-                text_color="#81c784",
+                text_color=COLORS["badge_success_text"],
                 padx=8,
                 pady=2,
             ).pack()
@@ -514,8 +514,8 @@ class DNSPanel(ctk.CTkFrame):
             self._render_hero_card_content(summary.best_result)
             best_id = summary.best_result.provider.id
             if best_id in self._provider_cards:
-                self._provider_cards[best_id].configure(border_color="#FFD700", border_width=2)
-                self._provider_status_labels[best_id].configure(text="🥇 O Mais Rápido", text_color="#FFD700")
+                self._provider_cards[best_id].configure(border_color=COLORS["gold_trophy"], border_width=2)
+                self._provider_status_labels[best_id].configure(text="Mais Rápido", text_color=COLORS["gold_trophy"])
 
     def _on_error_ui(self, err_msg: str):
         self.btn_start.configure(state="normal", fg_color=COLORS["accent"])

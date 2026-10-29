@@ -3,8 +3,11 @@ CedNet Help - Sidebar de Navegação
 Menu lateral com navegação entre os módulos do aplicativo.
 """
 
+import os
 import customtkinter as ctk
+from PIL import Image
 from modules.utils import COLORS, FONTS, SIDEBAR_WIDTH, APP_NAME, APP_VERSION
+from modules.update_checker import get_app_dir
 
 
 class Sidebar(ctk.CTkFrame):
@@ -32,11 +35,20 @@ class Sidebar(ctk.CTkFrame):
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
         header_frame.pack(fill="x", padx=15, pady=(25, 5))
 
-        ctk.CTkLabel(
-            header_frame,
-            text="🛠️",
-            font=("Segoe UI", 32),
-        ).pack(pady=(0, 5))
+        app_dir = get_app_dir()
+        logo_png = os.path.join(app_dir, "assets", "icon.png")
+        if not os.path.exists(logo_png):
+            logo_png = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "icon.png")
+
+        if os.path.exists(logo_png):
+            try:
+                pil_img = Image.open(logo_png).resize((48, 48), Image.Resampling.LANCZOS)
+                logo_ctk = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(48, 48))
+                ctk.CTkLabel(header_frame, text="", image=logo_ctk).pack(pady=(0, 6))
+            except Exception:
+                ctk.CTkLabel(header_frame, text="🛠️", font=("Segoe UI", 32)).pack(pady=(0, 5))
+        else:
+            ctk.CTkLabel(header_frame, text="🛠️", font=("Segoe UI", 32)).pack(pady=(0, 5))
 
         ctk.CTkLabel(
             header_frame,
