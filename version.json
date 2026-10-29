@@ -1,9 +1,9 @@
 {
-    "version": "1.10.1",
+    "version": "1.10.2",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.10.1/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.10.2/CedNet_Help.zip",
     "changelog": [
-        "Aba Wi-Fi com consulta e copia de nome e senha da rede conectada"
+        "Restaura borda de status verde/vermelha no card de conexao da aba Rede"
     ],
-    "sha256": "b6d095f6dc5bc938faf0b9295c97b9af7671e802b1aca89f72ac3f47956e96a2"
+    "sha256": "a31046aa618022cfc349eef26aa40b16328ccb225de519712fa1105307d0053b"
 }

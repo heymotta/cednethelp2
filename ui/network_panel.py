@@ -166,6 +166,10 @@ class NetworkPanel(ctk.CTkFrame):
                 text="Conexão com a internet ativa e funcional",
                 text_color=COLORS["text_secondary"],
             )
+            self.status_card.configure(
+                border_width=2,
+                border_color=COLORS["status_ok"],
+            )
         else:
             self.status_emoji.configure(text="🔴")
             self.status_label.configure(
@@ -175,6 +179,10 @@ class NetworkPanel(ctk.CTkFrame):
             self.status_detail.configure(
                 text="Verifique os cabos ou consulte o provedor",
                 text_color=COLORS["text_secondary"],
+            )
+            self.status_card.configure(
+                border_width=2,
+                border_color=COLORS["status_error"],
             )
 
         # Os dados do NetworkManager ficam na raiz do dicionário state
