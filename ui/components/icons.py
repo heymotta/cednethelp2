@@ -44,7 +44,7 @@ def get_status_indicator_image(status_type: str, size: Tuple[int, int] = (20, 20
             "dark": ((255, 152, 0), (245, 158, 11)),
         },
         "idle": {
-            "light": ((148, 163, 184), (203, 213, 225)),
+            "light": ((156, 163, 175), (209, 213, 219)),
             "dark": ((100, 116, 139), (71, 85, 105)),
         },
     }

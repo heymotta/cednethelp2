@@ -7,21 +7,21 @@ Constantes compartilhadas: cores, fontes, dimensões e funções auxiliares.
 # Suporte nativo a temas do CustomTkinter (o tema escuro é o padrão da aplicação)
 COLORS = {
     # Backgrounds
-    "bg_main": ("#f1f5f9", "#1a1a2e"),
-    "bg_sidebar": ("#e2e8f0", "#16213e"),
+    "bg_main": ("#f7f8fa", "#1a1a2e"),
+    "bg_sidebar": ("#f0f1f3", "#16213e"),
     "bg_card": ("#ffffff", "#0f3460"),
-    "bg_card_alt": ("#f8fafc", "#132a4a"),
-    "bg_card_hover": ("#e2e8f0", "#1a4a7a"),
-    "entry_bg": ("#f8fafc", "#0d2137"),
+    "bg_card_alt": ("#f5f6f8", "#132a4a"),
+    "bg_card_hover": ("#eaecef", "#1a4a7a"),
+    "entry_bg": ("#f3f4f6", "#0d2137"),
 
     # Acentos
     "accent": ("#1a73e8", "#1a73e8"),
     "accent_hover": ("#1557b0", "#2196f3"),
-    "accent_cyan": ("#0284c7", "#00bcd4"),
+    "accent_cyan": ("#2563a8", "#00bcd4"),
 
     # Texto
-    "text_primary": ("#0f172a", "#ffffff"),
-    "text_secondary": ("#64748b", "#94a3b8"),
+    "text_primary": ("#1a1f2e", "#ffffff"),
+    "text_secondary": ("#6b7280", "#94a3b8"),
 
     # Status (Acessíveis segundo WCAG AA sobre fundos claros e escuros)
     "status_ok": ("#16a34a", "#4ade80"),
@@ -31,18 +31,18 @@ COLORS = {
     # Ações e Alertas
     "btn_success": ("#16a34a", "#15803d"),
     "btn_success_hover": ("#15803d", "#166534"),
-    "bg_error_banner": ("#fee2e2", "#3d1a1a"),
+    "bg_error_banner": ("#fef2f2", "#3d1a1a"),
     "border_error_banner": ("#f87171", "#dc2626"),
     "text_error_banner": ("#991b1b", "#fca5a5"),
 
     # Bordas
-    "border": ("#cbd5e1", "#1e3a5f"),
+    "border": ("#d4d7dd", "#1e3a5f"),
 
     # Tokens Semânticos Adicionais (Hallmark / Anti-Slop Audit)
     "gold_trophy": ("#d97706", "#ffd700"),
     "btn_danger": ("#dc2626", "#dc2626"),
     "btn_danger_hover": ("#b91c1c", "#c62828"),
-    "badge_success_bg": ("#dcfce7", "#1b5e20"),
+    "badge_success_bg": ("#e4f5ea", "#1b5e20"),
     "badge_success_text": ("#166534", "#81c784"),
 }
 
@@ -75,7 +75,7 @@ SIDEBAR_WIDTH = 220
 WINDOW_SIZE = "1050x680"
 WINDOW_MIN_SIZE = (900, 600)
 
-APP_VERSION = "1.10.5"
+APP_VERSION = "1.10.6"
 APP_NAME = "CedNet Help"
 
 def format_error_message(error: Exception) -> str:
