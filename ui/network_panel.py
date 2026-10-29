@@ -19,6 +19,7 @@ class NetworkPanel(ctk.CTkFrame):
         self._after_id: str | None = None
 
         self._info_labels: dict[str, ctk.CTkLabel] = {}
+        self._info_cards: dict[str, ctk.CTkFrame] = {}
         self._create_ui()
         self._start_sync()
 
@@ -137,6 +138,7 @@ class NetworkPanel(ctk.CTkFrame):
         value_label.pack(anchor="w", pady=(4, 0))
 
         self._info_labels[key] = value_label
+        self._info_cards[key] = card
         return card
 
     def _start_sync(self):
@@ -217,6 +219,22 @@ class NetworkPanel(ctk.CTkFrame):
             if key in self._info_labels:
                 display_text = str(val) if val else "Não disponível"
                 self._info_labels[key].configure(text=display_text)
+
+        # Atualiza a borda do card de Velocidade de Link conforme o valor
+        speed_card = self._info_cards.get("speed")
+        if speed_card:
+            import re
+            speed_match = re.search(r"(\d+)", str(speed_val))
+            if speed_match:
+                speed_num = int(speed_match.group(1))
+                if speed_num >= 1000:
+                    speed_card.configure(border_width=2, border_color=COLORS["status_ok"])
+                elif speed_num >= 100:
+                    speed_card.configure(border_width=2, border_color=COLORS["status_warning"])
+                else:
+                    speed_card.configure(border_width=2, border_color=COLORS["status_error"])
+            else:
+                speed_card.configure(border_width=0)
 
     def _on_manual_refresh(self):
         self.btn_refresh.configure(state="disabled", text="Atualizando...")

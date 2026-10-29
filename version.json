@@ -1,9 +1,9 @@
 {
-    "version": "1.10.2",
+    "version": "1.10.3",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.10.2/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.10.3/CedNet_Help.zip",
     "changelog": [
-        "Restaura borda de status verde/vermelha no card de conexao da aba Rede"
+        "Borda colorida por velocidade de link e ferramenta de diagnostico de MTU ideal na aba Roteador"
     ],
-    "sha256": "a31046aa618022cfc349eef26aa40b16328ccb225de519712fa1105307d0053b"
+    "sha256": "5aadcec031cf8f606817c2288fd7dd7c2a91abbc971a4c33f92b53aaf2921f46"
 }
