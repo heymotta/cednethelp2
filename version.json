@@ -1,9 +1,9 @@
 {
-    "version": "1.9.9",
+    "version": "1.10.0",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.9.9/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.10.0/CedNet_Help.zip",
     "changelog": [
-        "Correcao da exibicao dos dados de rede no NetworkPanel"
+        "Remocao do modulo de senhas padrao e adicao de seletor de Modo Claro / Modo Escuro"
     ],
-    "sha256": "a962ec2c35aebb4f58b2389f9f15eb7fda4bf0d83bbad3e6f5ad6a24ea29f4d5"
+    "sha256": "15705a1eb64f1aaca61ea1cf944f654d9d3842e7934cf231f30ed6da914327a3"
 }

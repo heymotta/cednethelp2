@@ -946,6 +946,11 @@ class SpeedTestPanel(ctk.CTkFrame):
         self.toast_label.configure(text=message)
         self.after(5000, lambda: self.toast_label.configure(text=""))
 
+    def on_theme_changed(self, mode: str):
+        """Notifica o componente canvas do velocímetro sobre a mudança de tema."""
+        if hasattr(self, "speedometer") and hasattr(self.speedometer, "on_theme_changed"):
+            self.speedometer.on_theme_changed(mode)
+
     def stop_monitoring(self):
         if self._poll_after_id:
             self.after_cancel(self._poll_after_id)

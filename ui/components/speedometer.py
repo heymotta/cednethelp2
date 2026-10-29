@@ -7,7 +7,16 @@ leitura numérica em tempo real e layout responsivo sem sobreposição de texto.
 import tkinter as tk
 import math
 from typing import Optional
+import customtkinter as ctk
 from modules.utils import COLORS, FONTS
+
+
+def _get_color(color_spec: str | tuple[str, str]) -> str:
+    """Retorna a cor apropriada de acordo com o modo atual (light ou dark)."""
+    if isinstance(color_spec, tuple) and len(color_spec) == 2:
+        mode = ctk.get_appearance_mode().lower()
+        return color_spec[0] if mode == "light" else color_spec[1]
+    return color_spec
 
 
 class SpeedometerCanvas(tk.Canvas):
@@ -20,14 +29,15 @@ class SpeedometerCanvas(tk.Canvas):
         parent,
         width: int = 260,
         height: int = 240,
-        bg_color: str = COLORS["bg_card"],
+        bg_color=COLORS["bg_card"],
         **kwargs,
     ):
+        actual_bg = _get_color(bg_color)
         super().__init__(
             parent,
             width=width,
             height=height,
-            bg=bg_color,
+            bg=actual_bg,
             highlightthickness=0,
             bd=0,
             **kwargs,
@@ -35,7 +45,8 @@ class SpeedometerCanvas(tk.Canvas):
 
         self.w = width
         self.h = height
-        self.bg_color = bg_color
+        self.raw_bg_color = bg_color
+        self.bg_color = actual_bg
 
         # Intervalo de velocidade
         self.max_speed = 1000.0
@@ -133,6 +144,12 @@ class SpeedometerCanvas(tk.Canvas):
     # Desenho Responsivo no Canvas
     # ================================================================
 
+    def on_theme_changed(self, mode: str):
+        """Atualiza a cor de fundo do canvas e redesenha o mostrador para o novo tema."""
+        self.bg_color = _get_color(self.raw_bg_color)
+        self.configure(bg=self.bg_color)
+        self.redraw()
+
     def redraw(self):
         """Redesenha todo o mostrador garantindo zero sobreposição."""
         self.delete("all")
@@ -149,7 +166,13 @@ class SpeedometerCanvas(tk.Canvas):
         if radius < 30:
             return
 
-        # 1. Arco de Fundo (Pista Escura)
+        border_col = _get_color(COLORS["border"])
+        text_sec_col = _get_color(COLORS["text_secondary"])
+        text_pri_col = _get_color(COLORS["text_primary"])
+        bg_main_col = _get_color(COLORS["bg_main"])
+        primary_col = _get_color(self.primary_color)
+
+        # 1. Arco de Fundo (Pista)
         box = (
             cx - radius,
             cy - radius,
@@ -162,7 +185,7 @@ class SpeedometerCanvas(tk.Canvas):
             start=-35,
             extent=250,
             style=tk.ARC,
-            outline=COLORS["border"],
+            outline=border_col,
             width=arc_width,
         )
 
@@ -175,7 +198,7 @@ class SpeedometerCanvas(tk.Canvas):
                 start=215,
                 extent=extent_deg,
                 style=tk.ARC,
-                outline=self.primary_color,
+                outline=primary_col,
                 width=arc_width,
             )
 
@@ -195,7 +218,7 @@ class SpeedometerCanvas(tk.Canvas):
             x2 = cx + r_out * math.cos(ang_rad)
             y2 = cy - r_out * math.sin(ang_rad)
 
-            self.create_line(x1, y1, x2, y2, fill=COLORS["text_secondary"], width=2)
+            self.create_line(x1, y1, x2, y2, fill=text_sec_col, width=2)
 
             # Rótulos dos números do mostrador (fora do arco)
             r_txt = radius + arc_width * 0.9
@@ -204,7 +227,7 @@ class SpeedometerCanvas(tk.Canvas):
             lbl = str(spd) if spd < 1000 else "1G"
             font_size = max(7, int(radius * 0.11))
             self.create_text(
-                tx, ty, text=lbl, fill=COLORS["text_secondary"], font=("Segoe UI", font_size)
+                tx, ty, text=lbl, fill=text_sec_col, font=("Segoe UI", font_size)
             )
 
         # 4. Ponteiro Central
@@ -218,7 +241,7 @@ class SpeedometerCanvas(tk.Canvas):
         needle_w = max(3, int(radius * 0.05))
         self.create_line(
             cx, cy, nx, ny,
-            fill=self.primary_color,
+            fill=primary_col,
             width=needle_w,
             capstyle=tk.ROUND,
         )
@@ -228,7 +251,7 @@ class SpeedometerCanvas(tk.Canvas):
         self.create_oval(
             cx - r_hub, cy - r_hub,
             cx + r_hub, cy + r_hub,
-            fill=COLORS["bg_main"], outline=self.primary_color, width=2
+            fill=bg_main_col, outline=primary_col, width=2
         )
 
         # 5. HIERAQUIA DE TEXTO (Posicionada estritamente ABAIXO do pivô sem sobreposição)
@@ -245,7 +268,7 @@ class SpeedometerCanvas(tk.Canvas):
         self.create_text(
             cx, y_val,
             text=val_str,
-            fill=COLORS["text_primary"],
+            fill=text_pri_col,
             font=("Segoe UI", val_font_size, "bold"),
         )
 
@@ -255,7 +278,7 @@ class SpeedometerCanvas(tk.Canvas):
         self.create_text(
             cx, y_unit,
             text="Mbps",
-            fill=COLORS["text_secondary"],
+            fill=text_sec_col,
             font=("Segoe UI", unit_font_size, "bold"),
         )
 
@@ -266,7 +289,7 @@ class SpeedometerCanvas(tk.Canvas):
         self.create_text(
             cx, y_mode,
             text=mode_text,
-            fill=self.primary_color,
+            fill=primary_col,
             font=("Segoe UI", mode_font_size, "bold"),
         )
 

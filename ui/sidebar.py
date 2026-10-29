@@ -10,7 +10,7 @@ from modules.utils import COLORS, FONTS, SIDEBAR_WIDTH, APP_NAME, APP_VERSION
 class Sidebar(ctk.CTkFrame):
     """Menu lateral de navegação do CedNet Help."""
 
-    def __init__(self, parent, on_navigate: callable):
+    def __init__(self, parent, on_navigate: callable, on_toggle_theme: callable = None):
         super().__init__(
             parent,
             width=SIDEBAR_WIDTH,
@@ -18,6 +18,7 @@ class Sidebar(ctk.CTkFrame):
             fg_color=COLORS["bg_sidebar"],
         )
         self.on_navigate = on_navigate
+        self.on_toggle_theme = on_toggle_theme
         self.buttons: dict[str, ctk.CTkButton] = {}
         self.active_button: str | None = None
 
@@ -67,7 +68,6 @@ class Sidebar(ctk.CTkFrame):
             ("wifi",             "📶  Canais Wi-Fi"),
             ("dns_test",         "⏱️  Teste de DNS"),
             ("speedtest",        "⚡  Speed Test"),
-            ("passwords",        "🔑  Senhas Padrão"),
         ]
 
         nav_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -93,12 +93,35 @@ class Sidebar(ctk.CTkFrame):
         footer = ctk.CTkFrame(self, fg_color="transparent")
         footer.pack(side="bottom", fill="x", padx=15, pady=15)
 
+        # Alternador de Tema (Modo Escuro / Modo Claro)
+        theme_frame = ctk.CTkFrame(footer, fg_color="transparent")
+        theme_frame.pack(fill="x", pady=(0, 10))
+
+        self.theme_var = ctk.StringVar(value="dark")
+        self.theme_switch = ctk.CTkSwitch(
+            theme_frame,
+            text="Modo Claro",
+            font=FONTS["small_bold"],
+            text_color=COLORS["text_secondary"],
+            command=self._on_theme_switch,
+            onvalue="light",
+            offvalue="dark",
+            variable=self.theme_var,
+            progress_color=COLORS["accent"],
+        )
+        self.theme_switch.pack(anchor="w", padx=5)
+
         ctk.CTkLabel(
             footer,
             text=f"v{APP_VERSION}",
             font=FONTS["small"],
             text_color=COLORS["text_secondary"],
-        ).pack()
+        ).pack(anchor="w", padx=5)
+
+    def _on_theme_switch(self):
+        mode = self.theme_var.get()
+        if self.on_toggle_theme:
+            self.on_toggle_theme()
 
     def _on_click(self, key: str):
         self.set_active(key)

@@ -251,33 +251,11 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         table_frame = ctk.CTkFrame(container, fg_color=COLORS["bg_card"], corner_radius=9)
         table_frame.pack(fill="both", expand=True)
         columns = ("status", "model", "ip", "mac", "name", "firmware")
-        style = ttk.Style()
+        self._style = ttk.Style()
         try:
-            style.theme_use("clam")
+            self._style.theme_use("clam")
         except Exception:
             pass
-
-        style.configure(
-            "Ubiquiti.Treeview",
-            background=COLORS["bg_card"],
-            fieldbackground=COLORS["bg_card"],
-            foreground=COLORS["text_primary"],
-            rowheight=32,
-            font=("Segoe UI", 10),
-            borderwidth=0,
-        )
-        style.configure(
-            "Ubiquiti.Treeview.Heading",
-            background=COLORS["bg_sidebar"],
-            foreground=COLORS["text_primary"],
-            font=("Segoe UI", 10, "bold"),
-            relief="flat",
-        )
-        style.map(
-            "Ubiquiti.Treeview",
-            background=[("selected", COLORS["accent"])],
-            foreground=[("selected", COLORS["text_primary"])],
-        )
 
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", style="Ubiquiti.Treeview")
         headings = {
@@ -301,9 +279,7 @@ class UbiquitiScannerPage(ctk.CTkFrame):
             anchor = "center" if col == "status" else "w"
             self.tree.column(col, width=widths[col], anchor=anchor, minwidth=widths[col])
 
-        # Tag para linha do dispositivo conectado (destaque visual)
-        self.tree.tag_configure("connected", background="#0d3b66", foreground="#ffffff", font=("Segoe UI", 10, "bold"))
-        self.tree.tag_configure("normal", background=COLORS["bg_card"], foreground=COLORS["text_primary"])
+        self._apply_tree_theme()
 
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
@@ -311,6 +287,49 @@ class UbiquitiScannerPage(ctk.CTkFrame):
         scrollbar.pack(side="right", fill="y", padx=(0, 8), pady=8)
         self.tree.bind("<Double-1>", self._on_double_click)
         self.tree.bind("<Button-3>", self._on_right_click)
+
+    def _apply_tree_theme(self):
+        """Aplica cores dinâmicas à tabela Treeview de acordo com o modo claro/escuro."""
+        mode = ctk.get_appearance_mode().lower()
+        idx = 0 if mode == "light" else 1
+
+        bg_card = COLORS["bg_card"][idx] if isinstance(COLORS["bg_card"], tuple) else COLORS["bg_card"]
+        bg_sidebar = COLORS["bg_sidebar"][idx] if isinstance(COLORS["bg_sidebar"], tuple) else COLORS["bg_sidebar"]
+        text_primary = COLORS["text_primary"][idx] if isinstance(COLORS["text_primary"], tuple) else COLORS["text_primary"]
+        accent = COLORS["accent"][idx] if isinstance(COLORS["accent"], tuple) else COLORS["accent"]
+
+        self._style.configure(
+            "Ubiquiti.Treeview",
+            background=bg_card,
+            fieldbackground=bg_card,
+            foreground=text_primary,
+            rowheight=32,
+            font=("Segoe UI", 10),
+            borderwidth=0,
+        )
+        self._style.configure(
+            "Ubiquiti.Treeview.Heading",
+            background=bg_sidebar,
+            foreground=text_primary,
+            font=("Segoe UI", 10, "bold"),
+            relief="flat",
+        )
+        self._style.map(
+            "Ubiquiti.Treeview",
+            background=[("selected", accent)],
+            foreground=[("selected", text_primary)],
+        )
+
+        # Atualiza as tags
+        connected_bg = "#bae6fd" if mode == "light" else "#0d3b66"
+        connected_fg = "#0369a1" if mode == "light" else "#ffffff"
+        self.tree.tag_configure("connected", background=connected_bg, foreground=connected_fg, font=("Segoe UI", 10, "bold"))
+        self.tree.tag_configure("normal", background=bg_card, foreground=text_primary)
+
+    def on_theme_changed(self, mode: str):
+        """Chamado quando o usuário alterna entre modo claro e escuro."""
+        self._apply_tree_theme()
+        self._render()
 
     # ================================================================
     # Interface / Scan Controls

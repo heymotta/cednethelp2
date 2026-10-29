@@ -28,7 +28,6 @@ from ui.wifi_panel import WiFiPanel
 from ui.dns_panel import DNSPanel
 from ui.speedtest_panel import SpeedTestPanel
 from ui.scanner_page import UbiquitiScannerPage
-from ui.passwords_panel import PasswordsPanel
 
 
 class CedNetApp(ctk.CTk):
@@ -51,6 +50,8 @@ class CedNetApp(ctk.CTk):
             except Exception:
                 pass
 
+        # Tema padrão da aplicação: Escuro
+        self.current_theme = "dark"
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
         self.configure(fg_color=COLORS["bg_main"])
@@ -61,7 +62,7 @@ class CedNetApp(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.sidebar = Sidebar(self, on_navigate=self._navigate)
+        self.sidebar = Sidebar(self, on_navigate=self._navigate, on_toggle_theme=self.toggle_theme)
         self.sidebar.grid(row=0, column=0, sticky="nsew")
 
         self.main_area = ctk.CTkFrame(
@@ -85,6 +86,24 @@ class CedNetApp(ctk.CTk):
         self._pending_update = None
         check_for_update_async(self._on_update_check_result)
 
+    def toggle_theme(self):
+        """Alterna entre os modos Claro e Escuro dinamicamente."""
+        new_mode = "light" if self.current_theme == "dark" else "dark"
+        self.set_theme(new_mode)
+
+    def set_theme(self, mode: str):
+        """Aplica o tema selecionado ('dark' ou 'light')."""
+        self.current_theme = mode
+        ctk.set_appearance_mode(mode)
+
+        # Notifica painéis que utilizam elementos Tkinter nativos (como Canvas do velocímetro ou Treeview)
+        for panel in self.panels.values():
+            if hasattr(panel, "on_theme_changed"):
+                try:
+                    panel.on_theme_changed(mode)
+                except Exception:
+                    pass
+
     def _init_panels(self):
         """Inicializa os módulos registrados."""
         self.panels["network"] = NetworkPanel(self.main_area)
@@ -95,7 +114,6 @@ class CedNetApp(ctk.CTk):
         self.panels["dns_test"] = DNSPanel(self.main_area)
         self.panels["speedtest"] = SpeedTestPanel(self.main_area)
         self.panels["ubiquiti_scanner"] = UbiquitiScannerPage(self.main_area)
-        self.panels["passwords"] = PasswordsPanel(self.main_area)
 
     def _navigate(self, panel_name: str):
         """Alterna a exibição para o painel selecionado."""
