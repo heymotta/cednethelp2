@@ -44,24 +44,40 @@ class WiFiPanel(ctk.CTkFrame):
 
         ctk.CTkLabel(
             header,
-            text="📶  Análise de Canais Wi-Fi",
+            text="📶  Wi-Fi",
             font=FONTS["title"],
             text_color=COLORS["text_primary"],
             anchor="w",
         ).pack(side="left")
 
+        btn_box = ctk.CTkFrame(header, fg_color="transparent")
+        btn_box.pack(side="right")
+
+        self.btn_show_connected = ctk.CTkButton(
+            btn_box,
+            text="🔑  Wi-Fi Conectado",
+            font=FONTS["body_bold"],
+            width=170,
+            height=40,
+            corner_radius=8,
+            fg_color=COLORS["bg_card"],
+            hover_color=COLORS["bg_card_hover"],
+            command=self._on_show_connected_click,
+        )
+        self.btn_show_connected.pack(side="left", padx=(0, 8))
+
         self.btn_refresh = ctk.CTkButton(
-            header,
+            btn_box,
             text="Escanear Redes Wi-Fi",
             font=FONTS["body_bold"],
-            width=200,
+            width=180,
             height=40,
             corner_radius=8,
             fg_color=COLORS["accent"],
             hover_color=COLORS["accent_hover"],
             command=self._on_btn_click,
         )
-        self.btn_refresh.pack(side="right")
+        self.btn_refresh.pack(side="left")
 
         self.error_card = ctk.CTkFrame(
             top_container,
@@ -531,6 +547,256 @@ class WiFiPanel(ctk.CTkFrame):
             or query in str(net["channel"])
             or query in net["band"].lower()
         )
+
+    def _on_show_connected_click(self):
+        """Consulta as informações do Wi-Fi conectado e exibe o modal."""
+        self.btn_show_connected.configure(state="disabled", text="Consultando...")
+        self.update_idletasks()
+
+        ok, msg, data = self.wifi_scanner.get_connected_wifi_info()
+        self.btn_show_connected.configure(state="normal", text="🔑  Wi-Fi Conectado")
+
+        if not ok or not data:
+            self._show_info_dialog("Wi-Fi Conectado", msg or "Nenhuma rede Wi-Fi conectada detectada.")
+            return
+
+        self._show_connected_wifi_modal(data)
+
+    def _show_info_dialog(self, title: str, message: str):
+        """Exibe modal informativo/alerta."""
+        modal = ctk.CTkToplevel(self)
+        modal.title(title)
+        modal.geometry("420x200")
+        modal.resizable(False, False)
+        modal.configure(fg_color=COLORS["bg_main"])
+        modal.attributes("-topmost", True)
+        modal.grab_set()
+
+        card = ctk.CTkFrame(modal, fg_color=COLORS["bg_card"], corner_radius=12)
+        card.pack(fill="both", expand=True, padx=15, pady=15)
+
+        ctk.CTkLabel(
+            card,
+            text=f"⚠️  {title}",
+            font=FONTS["subtitle"],
+            text_color=COLORS["status_warning"],
+        ).pack(pady=(15, 8))
+
+        ctk.CTkLabel(
+            card,
+            text=message,
+            font=FONTS["body"],
+            text_color=COLORS["text_secondary"],
+            wraplength=360,
+            justify="center",
+        ).pack(pady=(0, 15), padx=15)
+
+        btn_close = ctk.CTkButton(
+            card,
+            text="Fechar (Esc)",
+            font=FONTS["body_bold"],
+            height=36,
+            corner_radius=8,
+            fg_color=COLORS["accent"],
+            hover_color=COLORS["accent_hover"],
+            command=modal.destroy,
+        )
+        btn_close.pack(pady=(0, 10))
+
+        modal.bind("<Escape>", lambda e: modal.destroy())
+        modal.bind("<Return>", lambda e: modal.destroy())
+        btn_close.focus_set()
+
+    def _show_connected_wifi_modal(self, data: dict):
+        """Exibe o modal com o nome, senha e parâmetros do Wi-Fi conectado."""
+        modal = ctk.CTkToplevel(self)
+        modal.title("Rede Wi-Fi Conectada")
+        modal.geometry("500x465")
+        modal.resizable(False, False)
+        modal.configure(fg_color=COLORS["bg_main"])
+        modal.attributes("-topmost", True)
+        modal.grab_set()
+
+        card = ctk.CTkFrame(modal, fg_color=COLORS["bg_card"], corner_radius=12)
+        card.pack(fill="both", expand=True, padx=15, pady=15)
+
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="both", expand=True, padx=18, pady=15)
+
+        ctk.CTkLabel(
+            inner,
+            text="Rede Wi-Fi Conectada",
+            font=FONTS["subtitle"],
+            text_color=COLORS["text_primary"],
+            anchor="w",
+        ).pack(fill="x", pady=(0, 10))
+
+        highlight_box = ctk.CTkFrame(inner, fg_color=COLORS["entry_bg"], corner_radius=8)
+        highlight_box.pack(fill="x", pady=(0, 12))
+
+        hl_inner = ctk.CTkFrame(highlight_box, fg_color="transparent")
+        hl_inner.pack(fill="x", padx=12, pady=10)
+
+        ctk.CTkLabel(
+            hl_inner,
+            text="Nome da Rede (SSID):",
+            font=FONTS["small"],
+            text_color=COLORS["text_secondary"],
+            anchor="w",
+        ).pack(fill="x")
+
+        ssid_row = ctk.CTkFrame(hl_inner, fg_color="transparent")
+        ssid_row.pack(fill="x", pady=(2, 8))
+
+        ctk.CTkLabel(
+            ssid_row,
+            text=data["ssid"],
+            font=FONTS["title"],
+            text_color=COLORS["accent_cyan"],
+            anchor="w",
+        ).pack(side="left", fill="x", expand=True)
+
+        btn_copy_ssid = ctk.CTkButton(
+            ssid_row,
+            text="Copiar Nome",
+            font=FONTS["small_bold"],
+            width=105,
+            height=30,
+            corner_radius=6,
+            fg_color=COLORS["accent"],
+            hover_color=COLORS["accent_hover"],
+            command=lambda: self._copy_to_clipboard(data["ssid"], btn_copy_ssid, "Copiado!"),
+        )
+        btn_copy_ssid.pack(side="right")
+
+        ctk.CTkLabel(
+            hl_inner,
+            text="Senha do Wi-Fi:",
+            font=FONTS["small"],
+            text_color=COLORS["text_secondary"],
+            anchor="w",
+        ).pack(fill="x")
+
+        pw_row = ctk.CTkFrame(hl_inner, fg_color="transparent")
+        pw_row.pack(fill="x", pady=(2, 4))
+
+        lbl_pw = ctk.CTkLabel(
+            pw_row,
+            text=data["password"],
+            font=FONTS["mono_large"],
+            text_color=COLORS["status_ok"],
+            anchor="w",
+        )
+        lbl_pw.pack(side="left", fill="x", expand=True)
+
+        btn_copy_pw = ctk.CTkButton(
+            pw_row,
+            text="Copiar Senha",
+            font=FONTS["small_bold"],
+            width=105,
+            height=30,
+            corner_radius=6,
+            fg_color=COLORS["accent"],
+            hover_color=COLORS["accent_hover"],
+            command=lambda: self._copy_to_clipboard(data["password"], btn_copy_pw, "Copiado!"),
+        )
+        btn_copy_pw.pack(side="right")
+
+        details_frame = ctk.CTkFrame(inner, fg_color="transparent")
+        details_frame.pack(fill="x", pady=(0, 12))
+
+        items = [
+            ("Sinal / Qualidade:", data["signal"]),
+            ("Canal Atual:", data["channel"]),
+            ("BSSID (MAC do AP):", data["bssid"]),
+            ("Segurança:", data["auth"]),
+        ]
+
+        for label, val in items:
+            row = ctk.CTkFrame(details_frame, fg_color="transparent")
+            row.pack(fill="x", pady=2)
+
+            ctk.CTkLabel(
+                row,
+                text=label,
+                font=FONTS["small"],
+                text_color=COLORS["text_secondary"],
+                width=140,
+                anchor="w",
+            ).pack(side="left")
+
+            ctk.CTkLabel(
+                row,
+                text=str(val),
+                font=FONTS["mono"],
+                text_color=COLORS["text_primary"],
+                anchor="w",
+            ).pack(side="left", fill="x", expand=True)
+
+        btn_box = ctk.CTkFrame(inner, fg_color="transparent")
+        btn_box.pack(fill="x", side="bottom")
+
+        credentials_text = f"Wi-Fi: {data['ssid']}\nSenha: {data['password']}"
+        summary_text = (
+            f"SSID: {data['ssid']}\n"
+            f"Senha: {data['password']}\n"
+            f"BSSID: {data['bssid']}\n"
+            f"Canal: {data['channel']}\n"
+            f"Sinal: {data['signal']}\n"
+            f"Segurança: {data['auth']}"
+        )
+
+        btn_copy_creds = ctk.CTkButton(
+            btn_box,
+            text="Copiar Nome e Senha",
+            font=FONTS["body_bold"],
+            height=36,
+            corner_radius=8,
+            fg_color=COLORS["bg_card_alt"],
+            hover_color=COLORS["border"],
+            command=lambda: self._copy_to_clipboard(credentials_text, btn_copy_creds, "Copiado!"),
+        )
+        btn_copy_creds.pack(side="left", fill="x", expand=True, padx=(0, 5))
+
+        btn_copy_all = ctk.CTkButton(
+            btn_box,
+            text="Copiar Tudo",
+            font=FONTS["body_bold"],
+            height=36,
+            corner_radius=8,
+            fg_color=COLORS["bg_card_alt"],
+            hover_color=COLORS["border"],
+            command=lambda: self._copy_to_clipboard(summary_text, btn_copy_all, "Tudo Copiado!"),
+        )
+        btn_copy_all.pack(side="left", fill="x", expand=True, padx=(0, 5))
+
+        btn_close = ctk.CTkButton(
+            btn_box,
+            text="Fechar (Esc)",
+            font=FONTS["body_bold"],
+            height=36,
+            corner_radius=8,
+            fg_color=COLORS["accent"],
+            hover_color=COLORS["accent_hover"],
+            command=modal.destroy,
+        )
+        btn_close.pack(side="right", fill="x", expand=True)
+
+        modal.bind("<Escape>", lambda e: modal.destroy())
+        btn_close.focus_set()
+
+    def _copy_to_clipboard(self, text: str, button_widget=None, success_msg: str = "Copiado!"):
+        """Copia texto para a área de transferência do Windows com feedback no botão."""
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(text)
+            self.update()
+            if button_widget:
+                orig_text = button_widget.cget("text")
+                button_widget.configure(text=success_msg)
+                self.after(1500, lambda: button_widget.configure(text=orig_text))
+        except Exception:
+            pass
 
     def stop_monitoring(self):
         """Cancela timers pendentes ao fechar."""

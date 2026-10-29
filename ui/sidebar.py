@@ -65,7 +65,7 @@ class Sidebar(ctk.CTkFrame):
             ("ip_config",        "⚙️  Config. IP"),
             ("scanner",          "🔍  Scanner"),
             ("ubiquiti_scanner", "📡  Ubiquiti Discovery"),
-            ("wifi",             "📶  Canais Wi-Fi"),
+            ("wifi",             "📶  Wi-Fi"),
             ("dns_test",         "⏱️  Teste de DNS"),
             ("speedtest",        "⚡  Speed Test"),
         ]

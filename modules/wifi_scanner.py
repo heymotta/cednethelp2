@@ -84,9 +84,90 @@ class WiFiScanner:
         except Exception:
             return False, "Nenhum adaptador Wi-Fi habilitado foi encontrado."
 
-    # ================================================================
-    # Varredura Principal de Redes Wi-Fi
-    # ================================================================
+    @staticmethod
+    def get_connected_wifi_info() -> tuple[bool, str, Optional[dict]]:
+        """
+        Obtém os detalhes da rede Wi-Fi atualmente conectada e sua respectiva senha.
+
+        Returns:
+            Tupla (sucesso: bool, mensagem: str, dados: Optional[dict])
+        """
+        try:
+            res = subprocess.run(
+                "netsh wlan show interfaces",
+                capture_output=True,
+                text=True,
+                encoding="cp850",
+                errors="replace",
+                creationflags=_NO_WINDOW,
+                timeout=5.0,
+            )
+            output = res.stdout or ""
+            output_lower = output.lower()
+
+            if "serviço de configuração automática" in output_lower or "wlansvc" in output_lower:
+                if "não está em execução" in output_lower or "is not running" in output_lower:
+                    return False, "O serviço de Wi-Fi do Windows (wlansvc) está desativado.", None
+
+            if "não há nenhuma interface" in output_lower or "there is no wireless" in output_lower:
+                return False, "Nenhum adaptador Wi-Fi foi encontrado neste computador.", None
+
+            state_match = re.search(r"(?:Estado|State)\s*:\s*([^\r\n]+)", output, re.IGNORECASE)
+            state_val = state_match.group(1).strip().lower() if state_match else ""
+            if "conectado" not in state_val and "connected" not in state_val:
+                return False, "O computador não está conectado a nenhuma rede Wi-Fi no momento.", None
+
+            ssid_match = re.search(r"^\s*SSID\s*:\s*(.+)$", output, re.MULTILINE | re.IGNORECASE)
+            if not ssid_match:
+                return False, "Não foi possível identificar o nome (SSID) da rede conectada.", None
+
+            ssid = ssid_match.group(1).strip()
+
+            bssid_match = re.search(r"^\s*BSSID\s*:\s*([^\r\n]+)", output, re.MULTILINE | re.IGNORECASE)
+            bssid = bssid_match.group(1).strip() if bssid_match else "Não disponível"
+
+            signal_match = re.search(r"^\s*(?:Sinal|Signal)\s*:\s*([^\r\n]+)", output, re.MULTILINE | re.IGNORECASE)
+            signal = signal_match.group(1).strip() if signal_match else "Não disponível"
+
+            channel_match = re.search(r"^\s*(?:Canal|Channel)\s*:\s*([^\r\n]+)", output, re.MULTILINE | re.IGNORECASE)
+            channel = channel_match.group(1).strip() if channel_match else "Não disponível"
+
+            auth_match = re.search(r"^\s*(?:Autentica[çc][ãa]o|Authentication)\s*:\s*([^\r\n]+)", output, re.MULTILINE | re.IGNORECASE)
+            auth = auth_match.group(1).strip() if auth_match else "WPA2-Personal"
+
+            # Consulta o perfil com chave em texto claro
+            pw_res = subprocess.run(
+                f'netsh wlan show profile name="{ssid}" key=clear',
+                capture_output=True,
+                text=True,
+                encoding="cp850",
+                errors="replace",
+                creationflags=_NO_WINDOW,
+                timeout=5.0,
+            )
+            pw_output = pw_res.stdout or ""
+
+            key_match = re.search(r"(?:Conte[úu]do da Chave|Key Content)\s*:\s*([^\r\n]+)", pw_output, re.IGNORECASE)
+            if key_match:
+                password = key_match.group(1).strip()
+            else:
+                if "abert" in auth.lower() or "open" in auth.lower():
+                    password = "(Rede aberta - Sem senha)"
+                else:
+                    password = "(Senha não armazenada ou sem permissão)"
+
+            data = {
+                "ssid": ssid,
+                "password": password,
+                "bssid": bssid,
+                "signal": signal,
+                "channel": channel,
+                "auth": auth,
+            }
+            return True, "Informações obtidas com sucesso.", data
+
+        except Exception as e:
+            return False, f"Falha ao consultar Wi-Fi: {str(e)}", None
 
     @staticmethod
     def scan_networks(cancel_checker=None) -> tuple[bool, str, list[dict]]:
