@@ -37,8 +37,8 @@ class CedNetApp(ctk.CTk):
         super().__init__()
 
         self.title(APP_NAME)
-        self.geometry(WINDOW_SIZE)
         self.minsize(*WINDOW_MIN_SIZE)
+        self._center_window()
 
         app_dir = get_app_dir()
         icon_path = os.path.join(app_dir, "assets", "icon.ico")
@@ -85,6 +85,25 @@ class CedNetApp(ctk.CTk):
 
         self._pending_update = None
         check_for_update_async(self._on_update_check_result)
+
+        self._center_window()
+
+    def _center_window(self):
+        """Calcula as coordenadas e posiciona a janela centralizada na tela do usuário."""
+        try:
+            parts = WINDOW_SIZE.split("x")
+            win_w = int(parts[0])
+            win_h = int(parts[1])
+        except Exception:
+            win_w, win_h = 1050, 680
+
+        self.update_idletasks()
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+
+        x = max(0, (screen_w - win_w) // 2)
+        y = max(0, (screen_h - win_h) // 2)
+        self.geometry(f"{win_w}x{win_h}+{x}+{y}")
 
     def toggle_theme(self):
         """Alterna entre os modos Claro e Escuro dinamicamente."""

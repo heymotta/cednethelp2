@@ -1,9 +1,9 @@
 {
-    "version": "1.10.3",
+    "version": "1.10.4",
     "minimum_version": "1.0.0",
-    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.10.3/CedNet_Help.zip",
+    "download_url": "https://github.com/heymotta/cednethelp2/releases/download/v1.10.4/CedNet_Help.zip",
     "changelog": [
-        "Borda colorida por velocidade de link e ferramenta de diagnostico de MTU ideal na aba Roteador"
+        "Centralizacao automatica da janela do aplicativo ao iniciar"
     ],
-    "sha256": "5aadcec031cf8f606817c2288fd7dd7c2a91abbc971a4c33f92b53aaf2921f46"
+    "sha256": "938f2bac3a12d6d5e371dfbd8e95d891843036e60eb9b0d91d90ee7a44dd907b"
 }
